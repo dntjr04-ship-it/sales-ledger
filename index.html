@@ -9,6 +9,8 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <!-- Feather Icons for clean icons -->
   <script src="https://cdn.jsdelivr.net/npm/feather-icons/dist/feather.min.js"></script>
+  <!-- SheetJS for bank excel uploads -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 </head>
 <body>
   <div class="app-layout">
@@ -255,109 +257,235 @@
 
       <!-- 2. 매입·매출 주문장 뷰 -->
       <section class="content-view" id="ordersView">
-        <div class="panel">
-          <div class="panel-header flex-between flex-wrap gap-2">
-            <div class="panel-title">
-              <i data-feather="list"></i>
-              <h3>전체 주문 매입·매출 상세장부</h3>
-              <span class="badge" style="background:#ecfdf5;color:#059669;margin-left:8px;">
-                💡 실적집계: [주문구분: 완료] & [발주상태: 완료] 건만 반영
-              </span>
+        <!-- 뷰 모드 전환 토글 바 (상세 주문장 / 일별 집계표 / 월별 집계표) -->
+        <div class="orders-view-switch-bar" style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px;background:#fff;padding:10px 16px;border-radius:12px;border:1px solid #e2e8f0;box-shadow:0 1px 3px rgba(0,0,0,0.03);flex-wrap:wrap;">
+          <div class="btn-group-toggle" id="ordersViewToggleGroup">
+            <button class="toggle-btn active" id="btnViewOrdersList" onclick="switchOrdersViewTab('list')">
+              <i data-feather="list" style="width:14px;height:14px;vertical-align:middle;margin-right:4px;"></i> 📋 전체 상세 주문장
+            </button>
+            <button class="toggle-btn" id="btnViewOrdersDaily" onclick="switchOrdersViewTab('daily')">
+              <i data-feather="calendar" style="width:14px;height:14px;vertical-align:middle;margin-right:4px;"></i> 📅 일별 집계표
+            </button>
+            <button class="toggle-btn" id="btnViewOrdersMonthly" onclick="switchOrdersViewTab('monthly')">
+              <i data-feather="trending-up" style="width:14px;height:14px;vertical-align:middle;margin-right:4px;"></i> 📆 월별 집계표
+            </button>
+          </div>
+          <div style="font-size:12.5px;color:#64748b;" id="ordersViewTabDesc">
+            💡 모든 주문 건의 판매·매입·마진 상세 내역을 1줄로 확인하고 관리합니다.
+          </div>
+        </div>
+
+        <!-- A. 상세 주문장 컨테이너 -->
+        <div id="ordersListContainer">
+          <div class="panel">
+            <div class="panel-header flex-between flex-wrap gap-2">
+              <div class="panel-title">
+                <i data-feather="list"></i>
+                <h3>전체 주문 매입·매출 상세장부</h3>
+                <span class="badge" style="background:#ecfdf5;color:#059669;margin-left:8px;">
+                  💡 실적집계: [주문구분: 완료] & [발주상태: 완료] 건만 반영
+                </span>
+              </div>
+              <div class="table-actions flex-wrap">
+                <input type="text" id="orderSearchInput" placeholder="상품명, 고객명, 주문고유번호 검색..." class="input-search">
+                <select id="marketFilterSelect" class="select-box">
+                  <option value="ALL">모든 판매사이트</option>
+                </select>
+                <select id="sourcingFilterSelect" class="select-box">
+                  <option value="ALL">모든 소싱플랫폼</option>
+                </select>
+                <select id="sourcingTypeFilterSelect" class="select-box">
+                  <option value="ALL">모든 매입유형 (위탁/사입)</option>
+                  <option value="위탁">위탁 판매</option>
+                  <option value="사입">사입 (재고관리)</option>
+                </select>
+                <select id="orderStageFilterSelect" class="select-box">
+                  <option value="ALL">모든 주문구분</option>
+                  <option value="완료">주문: 완료</option>
+                  <option value="대기">주문: 대기</option>
+                  <option value="취소">주문: 취소</option>
+                  <option value="반품">주문: 반품</option>
+                  <option value="교환">주문: 교환</option>
+                </select>
+                <select id="purchaseStageFilterSelect" class="select-box">
+                  <option value="ALL">모든 발주상태</option>
+                  <option value="완료">발주: 완료</option>
+                  <option value="반품">발주: 반품</option>
+                  <option value="취소">발주: 취소</option>
+                </select>
+                <button class="btn btn-primary btn-sm" onclick="openOrderModal(-1, 'CONSIGNMENT_SALE')">
+                  <i data-feather="shopping-cart"></i> 🛒 위탁 매출 등록
+                </button>
+                <button class="btn btn-sm" onclick="openOrderModal(-1, 'PURCHASE_SALE')" style="background:#e0e7ff;color:#3730a3;border:1px solid #c7d2fe;font-weight:700;">
+                  <i data-feather="send"></i> 🚀 사입 매출(출고) 등록
+                </button>
+                <button class="btn btn-secondary btn-sm" onclick="openOrderModal(-1, 'PURCHASE_ONLY')" style="background:#fef3c7;color:#92400e;border-color:#fde68a;">
+                  <i data-feather="box"></i> 📦 사입 매입(입고) 등록
+                </button>
+              </div>
             </div>
-            <div class="table-actions flex-wrap">
-              <input type="text" id="orderSearchInput" placeholder="상품명, 고객명, 주문고유번호 검색..." class="input-search">
-              <select id="marketFilterSelect" class="select-box">
-                <option value="ALL">모든 판매사이트</option>
-              </select>
-              <select id="sourcingFilterSelect" class="select-box">
-                <option value="ALL">모든 소싱플랫폼</option>
-              </select>
-              <select id="sourcingTypeFilterSelect" class="select-box">
-                <option value="ALL">모든 매입유형 (위탁/사입)</option>
-                <option value="위탁">위탁 판매</option>
-                <option value="사입">사입 (재고관리)</option>
-              </select>
-              <select id="orderStageFilterSelect" class="select-box">
-                <option value="ALL">모든 주문구분</option>
-                <option value="완료">주문: 완료</option>
-                <option value="대기">주문: 대기</option>
-                <option value="취소">주문: 취소</option>
-                <option value="반품">주문: 반품</option>
-                <option value="교환">주문: 교환</option>
-              </select>
-              <select id="purchaseStageFilterSelect" class="select-box">
-                <option value="ALL">모든 발주상태</option>
-                <option value="완료">발주: 완료</option>
-                <option value="반품">발주: 반품</option>
-                <option value="취소">발주: 취소</option>
-              </select>
-              <button class="btn btn-primary btn-sm" onclick="openOrderModal(-1, 'CONSIGNMENT_SALE')">
-                <i data-feather="shopping-cart"></i> 🛒 위탁 매출 등록
-              </button>
-              <button class="btn btn-sm" onclick="openOrderModal(-1, 'PURCHASE_SALE')" style="background:#e0e7ff;color:#3730a3;border:1px solid #c7d2fe;font-weight:700;">
-                <i data-feather="send"></i> 🚀 사입 매출(출고) 등록
-              </button>
-              <button class="btn btn-secondary btn-sm" onclick="openOrderModal(-1, 'PURCHASE_ONLY')" style="background:#fef3c7;color:#92400e;border-color:#fde68a;">
-                <i data-feather="box"></i> 📦 사입 매입(입고) 등록
-              </button>
+            <div class="panel-body table-responsive scrollable-x">
+              <table class="data-table orders-1row-table" id="ordersTable">
+                <thead>
+                  <tr>
+                    <th style="min-width:65px;">사업자</th>
+                    <th style="min-width:130px;">주문일자<br><span style="font-weight:normal;color:#64748b;font-size:11px;">(주문고유번호)</span></th>
+                    <th style="min-width:85px;">판매처</th>
+                    <th style="min-width:160px;">상품명 / 옵션</th>
+                    <th style="min-width:45px;text-align:center;">수량</th>
+                    <th style="min-width:65px;">고객명</th>
+                    <th style="min-width:90px;text-align:right;">판매가<br><span style="font-weight:normal;color:#64748b;font-size:11px;">(배송비포함)</span></th>
+                    <th style="min-width:85px;text-align:right;">정산예정가</th>
+                    <th style="min-width:95px;text-align:right;">정산가</th>
+                    <th style="min-width:80px;text-align:center;">주문구분</th>
+                    <th style="min-width:80px;text-align:center;">매입유형</th>
+                    <th style="min-width:100px;">소싱처 / 공급사</th>
+                    <th style="min-width:130px;">결제카드<br><span style="font-weight:normal;color:#64748b;font-size:11px;">(카드명의)</span></th>
+                    <th style="min-width:85px;text-align:right;">매입가</th>
+                    <th style="min-width:85px;text-align:right;">마진금액</th>
+                    <th style="min-width:65px;text-align:center;">마진율</th>
+                    <th style="min-width:80px;text-align:center;">발주상태</th>
+                    <th style="min-width:65px;text-align:center;">관리</th>
+                  </tr>
+                </thead>
+                <tbody id="ordersTableBody">
+                  <!-- 동적 렌더링 (한줄 구조) -->
+                </tbody>
+              </table>
             </div>
           </div>
-          <div class="panel-body table-responsive scrollable-x">
-            <table class="data-table orders-1row-table" id="ordersTable">
-              <thead>
-                <tr>
-                  <th style="min-width:65px;">사업자</th>
-                  <th style="min-width:130px;">주문일자<br><span style="font-weight:normal;color:#64748b;font-size:11px;">(주문고유번호)</span></th>
-                  <th style="min-width:85px;">판매처</th>
-                  <th style="min-width:160px;">상품명 / 옵션</th>
-                  <th style="min-width:45px;text-align:center;">수량</th>
-                  <th style="min-width:65px;">고객명</th>
-                  <th style="min-width:90px;text-align:right;">판매가<br><span style="font-weight:normal;color:#64748b;font-size:11px;">(배송비포함)</span></th>
-                  <th style="min-width:85px;text-align:right;">정산예정가</th>
-                  <th style="min-width:95px;text-align:right;">정산가</th>
-                  <th style="min-width:80px;text-align:center;">주문구분</th>
-                  <th style="min-width:80px;text-align:center;">매입유형</th>
-                  <th style="min-width:100px;">소싱처 / 공급사</th>
-                  <th style="min-width:130px;">결제카드<br><span style="font-weight:normal;color:#64748b;font-size:11px;">(카드명의)</span></th>
-                  <th style="min-width:85px;text-align:right;">매입가</th>
-                  <th style="min-width:85px;text-align:right;">마진금액</th>
-                  <th style="min-width:65px;text-align:center;">마진율</th>
-                  <th style="min-width:80px;text-align:center;">발주상태</th>
-                  <th style="min-width:65px;text-align:center;">관리</th>
-                </tr>
-              </thead>
-              <tbody id="ordersTableBody">
-                <!-- 동적 렌더링 (한줄 구조) -->
-              </tbody>
-            </table>
+        </div>
+
+        <!-- B. 일별 집계표 컨테이너 -->
+        <div id="ordersDailyContainer" style="display:none;">
+          <div class="panel">
+            <div class="panel-header flex-between flex-wrap gap-2">
+              <div class="panel-title">
+                <i data-feather="calendar"></i>
+                <h3>📅 일별 매입·매출 및 마진 집계표</h3>
+                <span class="badge" style="background:#ecfdf5;color:#059669;margin-left:8px;">
+                  완료 주문 기준 일자별 실적 통계
+                </span>
+              </div>
+              <div style="font-size:12px;color:#64748b;">
+                * [상세 주문 보기]를 누르시면 해당 날짜의 주문들만 바로 필터링됩니다.
+              </div>
+            </div>
+            <div class="panel-body table-responsive">
+              <table class="data-table" id="ordersDailyTable">
+                <thead>
+                  <tr style="background:#f8fafc;">
+                    <th style="text-align:center;min-width:110px;">주문일자 (요일)</th>
+                    <th style="text-align:center;min-width:80px;">주문건수</th>
+                    <th style="text-align:right;min-width:110px;">총 판매매출액</th>
+                    <th style="text-align:right;min-width:110px;">정산예정액</th>
+                    <th style="text-align:right;min-width:110px;">실 매입원가</th>
+                    <th style="text-align:right;min-width:110px;">일별 순마진</th>
+                    <th style="text-align:center;min-width:80px;">마진율</th>
+                    <th style="text-align:center;min-width:90px;">주문 바로보기</th>
+                  </tr>
+                </thead>
+                <tbody id="ordersDailyTableBody">
+                  <!-- 동적 렌더링 -->
+                </tbody>
+                <tfoot id="ordersDailyTableFoot" style="background:#f1f5f9;font-weight:800;">
+                  <!-- 일별 합계 행 -->
+                </tfoot>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- C. 월별 집계표 컨테이너 -->
+        <div id="ordersMonthlyContainer" style="display:none;">
+          <div class="panel">
+            <div class="panel-header flex-between flex-wrap gap-2">
+              <div class="panel-title">
+                <i data-feather="trending-up"></i>
+                <h3>📆 월별 매입·매출 및 마진 집계표</h3>
+                <span class="badge" style="background:#eff6ff;color:#1d4ed8;margin-left:8px;">
+                  월간 누적 실적 및 월별 성장 분석
+                </span>
+              </div>
+              <div style="font-size:12px;color:#64748b;">
+                * [상세 주문 보기]를 누르시면 해당 월의 주문들만 바로 필터링됩니다.
+              </div>
+            </div>
+            <div class="panel-body table-responsive">
+              <table class="data-table" id="ordersMonthlyTable">
+                <thead>
+                  <tr style="background:#f8fafc;">
+                    <th style="text-align:center;min-width:110px;">주문월</th>
+                    <th style="text-align:center;min-width:80px;">완료건수</th>
+                    <th style="text-align:right;min-width:120px;">월 총 판매매출액</th>
+                    <th style="text-align:right;min-width:120px;">월 정산예정액</th>
+                    <th style="text-align:right;min-width:120px;">월 실 매입원가</th>
+                    <th style="text-align:right;min-width:120px;">월 순마진금액</th>
+                    <th style="text-align:center;min-width:90px;">평균 마진율</th>
+                    <th style="text-align:center;min-width:90px;">주문 바로보기</th>
+                  </tr>
+                </thead>
+                <tbody id="ordersMonthlyTableBody">
+                  <!-- 동적 렌더링 -->
+                </tbody>
+                <tfoot id="ordersMonthlyTableFoot" style="background:#f1f5f9;font-weight:800;">
+                  <!-- 월별 누적 합계 행 -->
+                </tfoot>
+              </table>
+            </div>
           </div>
         </div>
       </section>
 
       <!-- 3. 카드사 결제 관리 뷰 -->
       <section class="content-view" id="cardsView">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;background:#fff;padding:12px 18px;border-radius:12px;border:1px solid #e2e8f0;box-shadow:0 1px 3px rgba(0,0,0,0.03);flex-wrap:wrap;gap:10px;">
+          <div>
+            <span style="font-size:13.5px;font-weight:700;color:#1e293b;">
+              💳 카드사별 명의자·결제일·청구기간 기반 결제 관리
+            </span>
+            <div style="font-size:12px;color:#64748b;margin-top:2px;">
+              * 카드를 클릭하시면 해당 카드의 결제 건만 하단에 쏙 모아보실 수 있으며, 당월/다음월 탭으로 분리하여 확인하실 수 있습니다.
+            </div>
+          </div>
+          <button class="btn btn-primary btn-sm" onclick="openCardSettingsModal()" style="font-weight:700;display:inline-flex;align-items:center;gap:5px;">
+            <i data-feather="settings"></i> ⚙️ 카드사 결제일·청구기간 관리
+          </button>
+        </div>
+
         <div class="grid-cards-summary" id="cardsDetailGrid">
-          <!-- 카드 상세 카드들 동적 렌더링 -->
+          <!-- 카드 상세 카드들 동적 렌더링 (당월/다음월 결제예정액 + 비고란 포함) -->
         </div>
 
         <div class="panel mt-4">
-          <div class="panel-header">
+          <div class="panel-header flex-between flex-wrap gap-2">
             <div class="panel-title">
               <i data-feather="credit-card"></i>
-              <h3>카드사별 결제 내역 상세</h3>
+              <h3 id="cardTxTableTitle">카드사별 결제 내역 상세</h3>
+              <span class="badge" id="cardSelectedBadge" style="background:#e0e7ff;color:#3730a3;display:none;margin-left:8px;font-weight:700;"></span>
+              <button id="btnResetCardFilter" class="btn btn-sm btn-secondary" onclick="resetCardSelection()" style="display:none;padding:2px 8px;font-size:11px;margin-left:4px;">
+                ✕ 전체 카드 보기
+              </button>
+            </div>
+            <!-- 결제 탭: 전체 / 당월결제 / 다음월결제 -->
+            <div class="btn-group-toggle" id="cardTxToggleGroup">
+              <button class="toggle-btn active" id="btnCardTxAll" onclick="setCardTxTab('ALL')">전체 결제</button>
+              <button class="toggle-btn" id="btnCardTxCurrent" onclick="setCardTxTab('CURRENT')">💳 당월 결제예정</button>
+              <button class="toggle-btn" id="btnCardTxNext" onclick="setCardTxTab('NEXT')">📆 다음월 결제예정</button>
             </div>
           </div>
           <div class="panel-body table-responsive">
             <table class="data-table">
               <thead>
                 <tr>
-                  <th>결제카드명 (카드명의 구분)</th>
-                  <th>결제플랫폼(소싱처)</th>
-                  <th>상품명</th>
-                  <th>결제일시</th>
-                  <th>실 결제금액 (원가)</th>
-                  <th>소싱처 주문번호</th>
-                  <th>공급사명</th>
+                  <th style="min-width:130px;">결제카드명 (카드명의)</th>
+                  <th style="text-align:center;min-width:90px;">청구구분</th>
+                  <th style="min-width:100px;">결제플랫폼(소싱처)</th>
+                  <th style="min-width:180px;">상품명</th>
+                  <th style="min-width:110px;">결제일시</th>
+                  <th style="text-align:right;min-width:100px;">실 결제금액 (원가)</th>
+                  <th style="min-width:120px;">소싱처 주문번호</th>
+                  <th style="min-width:90px;">공급사명</th>
                 </tr>
               </thead>
               <tbody id="cardTransactionsTableBody">
@@ -434,18 +562,74 @@
 
           <!-- 통장 계좌 목록 & 입출금 관리 -->
           <div class="panel">
-            <div class="panel-header flex-between">
+            <div class="panel-header flex-between flex-wrap gap-2">
               <div class="panel-title">
                 <i data-feather="book"></i>
-                <h3>등록 통장 & 입출금 내역</h3>
+                <h3>등록 통장 목록</h3>
               </div>
-              <button class="btn btn-secondary btn-sm" onclick="promptAddBankAccount()">+ 통장 추가</button>
+              <div style="display:flex;gap:6px;flex-wrap:wrap;">
+                <button class="btn btn-primary btn-sm" onclick="openBankAccountModal(-1)">
+                  <i data-feather="plus"></i> + 통장 등록
+                </button>
+                <button class="btn btn-sm btn-secondary" onclick="openBankTxModal()" style="font-weight:700;">
+                  <i data-feather="edit-2"></i> ✍️ 거래내역 직접입력
+                </button>
+                <button class="btn btn-sm btn-secondary" onclick="openBankUploadModal()" style="background:#f0fdf4;color:#15803d;border:1px solid #bbf7d0;font-weight:700;">
+                  <i data-feather="upload"></i> 📥 통장 엑셀 업로드
+                </button>
+              </div>
             </div>
             <div class="panel-body">
               <div class="bank-accounts-list" id="bankAccountsList">
-                <!-- 통장 목록 동적 렌더링 -->
+                <!-- 통장 목록 동적 렌더링 (은행명, 계좌명, 계좌번호, 잔액, 비고 + 수정/삭제 버튼) -->
               </div>
             </div>
+          </div>
+        </div>
+
+        <!-- 3. 통장 거래내역 상세 장부 (입출금/잔액/적요) -->
+        <div class="panel mt-4">
+          <div class="panel-header flex-between flex-wrap gap-2">
+            <div class="panel-title">
+              <i data-feather="list"></i>
+              <h3>🏦 통장별 입출금 거래내역 장부</h3>
+              <span class="badge" id="bankTxCountBadge" style="background:#e0e7ff;color:#3730a3;margin-left:8px;font-weight:700;">0건</span>
+            </div>
+            <div class="table-actions flex-wrap">
+              <select id="bankTxFilterAccount" class="select-box" onchange="renderBankTxTable()">
+                <option value="ALL">모든 등록 통장</option>
+              </select>
+              <select id="bankTxFilterType" class="select-box" onchange="renderBankTxTable()">
+                <option value="ALL">입금 / 출금 전체</option>
+                <option value="입금">입금 내역만 🟢</option>
+                <option value="출금">출금 내역만 🔴</option>
+              </select>
+              <button class="btn btn-primary btn-sm" onclick="openBankTxModal()">
+                <i data-feather="plus"></i> ✍️ 거래내역 개별 등록
+              </button>
+              <button class="btn btn-sm" onclick="openBankUploadModal()" style="background:#15803d;color:#fff;font-weight:700;border:none;">
+                <i data-feather="upload-cloud"></i> 📥 은행 엑셀 업로드
+              </button>
+            </div>
+          </div>
+          <div class="panel-body table-responsive">
+            <table class="data-table" id="bankTxTable">
+              <thead>
+                <tr>
+                  <th style="min-width:110px;">거래일시</th>
+                  <th style="min-width:150px;">통장명 (계좌번호)</th>
+                  <th style="text-align:center;min-width:80px;">구분</th>
+                  <th style="text-align:right;min-width:110px;">거래금액</th>
+                  <th style="text-align:right;min-width:120px;">거래 후 잔액</th>
+                  <th style="min-width:180px;">적요 / 거래내용</th>
+                  <th style="min-width:130px;">비고</th>
+                  <th style="text-align:center;min-width:70px;">관리</th>
+                </tr>
+              </thead>
+              <tbody id="bankTxTableBody">
+                <!-- 동적 렌더링 -->
+              </tbody>
+            </table>
           </div>
         </div>
       </section>
@@ -501,22 +685,30 @@
             <span class="sub">리사님의 현재 알짜 순자산 가치</span>
             <h1 class="asset-amount" id="totalNetAssetValue">0원</h1>
             <p class="asset-formula">
-              <strong>[계산 공식]</strong> (통장 잔고 <span id="fBank">0원</span>) + (정산 미수금 <span id="fReceivable">0원</span>) + (창고 재고가치 <span id="fStock">0원</span>) - (나갈 카드값 <span id="fCard">0원</span>)
+              <strong>[계산 공식]</strong> (통장 잔고 <span id="fBank">0원</span>) + (정산 미수금 <span id="fReceivable">0원</span>) + (창고 재고가치 <span id="fStock">0원</span>) + (추가 자산 <span id="fExtraAsset" style="color:#bbf7d0;font-weight:700;">+0원</span>) - (나갈 카드값 <span id="fCard">0원</span>) - (등록 부채 <span id="fExtraDebt" style="color:#fecaca;font-weight:700;">-0원</span>)
             </p>
           </div>
-          <div class="asset-chart-badge">
-            <i data-feather="shield"></i>
-            <span>재무 건전성 우수</span>
+          <div style="display:flex;flex-direction:column;gap:8px;align-items:flex-end;">
+            <div class="asset-chart-badge">
+              <i data-feather="shield"></i>
+              <span>재무 건전성 우수</span>
+            </div>
+            <button class="btn btn-sm" onclick="openCustomAssetModal()" style="background:rgba(255,255,255,0.2);color:#fff;border:1px solid rgba(255,255,255,0.4);font-weight:700;border-radius:8px;padding:6px 14px;cursor:pointer;">
+              💎 자산/부채 등록·관리
+            </button>
           </div>
         </div>
 
         <!-- 손익계산서 표 -->
         <div class="panel mt-4">
-          <div class="panel-header">
+          <div class="panel-header flex-between flex-wrap gap-2">
             <div class="panel-title">
               <i data-feather="file-text"></i>
               <h3>2026 연간 경영 손익계산서 (P&L)</h3>
             </div>
+            <button class="btn btn-primary btn-sm" onclick="openCustomExpenseModal()" style="font-weight:700;">
+              💸 판관비/추가비용 등록·관리
+            </button>
           </div>
           <div class="panel-body">
             <table class="pl-table">
@@ -560,6 +752,8 @@
                   <td colspan="2"><strong>4. 판매비 및 일반관리비 (SG&A)</strong></td>
                   <td class="text-right text-danger"><strong id="plExpenseTotal">-0원</strong></td>
                 </tr>
+                <!-- 등록된 세부 판관비 항목들이 동적으로 들어갈 컨테이너 -->
+                <tr id="plDynamicExpensePlaceholder" style="display:none;"></tr>
                 <tr>
                   <td class="pl-indent">기타 잡비 & 포장 부자재 (추정치)</td>
                   <td><input type="number" id="inputOtherExpense" value="50000" class="input-inline" onchange="calculatePL()"></td>
@@ -1093,6 +1287,460 @@
 
       <div class="modal-footer" style="padding: 12px 20px; display:flex; justify-content:flex-end; align-items:center; background:#f8fafc; border-top:1px solid #e2e8f0;">
         <button type="button" class="btn btn-secondary" onclick="closeCrawlerModal()">닫기</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 1. 💳 카드사 결제일·청구기간·명의자 설정 모달 -->
+  <div class="modal-overlay" id="cardSettingsModalOverlay" style="display:none;">
+    <div class="modal-card" style="max-width: 720px; border-radius: 14px; overflow: hidden; box-shadow: 0 20px 40px -10px rgba(0,0,0,0.3); padding: 0;">
+      <div class="modal-header" style="background:#1e3a8a; color: #fff; padding: 16px 20px; display:flex; justify-content:space-between; align-items:center;">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <i data-feather="credit-card" style="width:20px;height:20px;"></i>
+          <h3 style="margin: 0; font-size: 16px; font-weight: 800; color: #fff;">
+            💳 카드사별 명의자·결제일·청구기간 관리
+          </h3>
+        </div>
+        <button type="button" class="modal-close-btn" onclick="closeCardSettingsModal()" style="color:#fff;font-size:22px;border:none;background:none;cursor:pointer;">&times;</button>
+      </div>
+
+      <div class="modal-body" style="padding: 20px; max-height: 75vh; overflow-y: auto;">
+        <!-- 입력 폼 -->
+        <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:16px;margin-bottom:20px;">
+          <h4 style="margin:0 0 12px;font-size:14px;color:#1e293b;font-weight:800;" id="cardFormTitle">
+            + 카드사 기본정보 신규 등록
+          </h4>
+          <input type="hidden" id="formCardId">
+          <div class="form-grid-3">
+            <div class="form-group">
+              <label>카드사명 *</label>
+              <input type="text" id="formCardName" class="form-control" placeholder="예: 국민카드, 삼성카드" required>
+            </div>
+            <div class="form-group">
+              <label>카드명의자 *</label>
+              <input type="text" id="formCardHolder" class="form-control" placeholder="예: 사업자A, 강우석, 리사" required>
+            </div>
+            <div class="form-group">
+              <label>결제일 (매월) *</label>
+              <select id="formCardPayDay" class="form-control" onchange="autoFillBillingRange()">
+                <option value="1">매월 1일</option>
+                <option value="5">매월 5일</option>
+                <option value="10">매월 10일</option>
+                <option value="12">매월 12일</option>
+                <option value="14" selected>매월 14일 (가장 대중적)</option>
+                <option value="15">매월 15일</option>
+                <option value="20">매월 20일</option>
+                <option value="23">매월 23일</option>
+                <option value="25">매월 25일</option>
+                <option value="27">매월 27일</option>
+              </select>
+            </div>
+            <div class="form-group span-2">
+              <label>청구기간 (이용기간) *</label>
+              <div style="display:flex;gap:6px;">
+                <input type="text" id="formCardBillingDesc" class="form-control" placeholder="예: 전월 1일 ~ 전월 말일" required>
+                <button type="button" class="btn btn-secondary btn-sm" onclick="setPresetBilling('MONTH_PREV')" style="white-space:nowrap;font-size:11px;">전월1일~말일</button>
+                <button type="button" class="btn btn-secondary btn-sm" onclick="setPresetBilling('CUSTOM_25')" style="white-space:nowrap;font-size:11px;">전전월14~전월13</button>
+              </div>
+            </div>
+            <div class="form-group">
+              <label>카드 디자인 테마</label>
+              <select id="formCardTheme" class="form-control">
+                <option value="theme-kb">노랑/브라운 (국민/카카오)</option>
+                <option value="theme-samsung" selected>파랑/네이비 (삼성/신한)</option>
+                <option value="theme-woori">그린 (우리/하나/농협)</option>
+                <option value="theme-smile">자주/핑크 (스마일/현대)</option>
+              </select>
+            </div>
+            <div class="form-group span-3">
+              <label>카드별 특징 및 혜택 (비고란)</label>
+              <input type="text" id="formCardNote" class="form-control" placeholder="예: 소싱처(G마켓, 11번가) 전용, 전월실적 30만 이상 2% 캐시백">
+            </div>
+          </div>
+          <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:14px;">
+            <button type="button" class="btn btn-secondary btn-sm" onclick="resetCardForm()">초기화</button>
+            <button type="button" class="btn btn-primary btn-sm" onclick="saveCardSetting()" style="font-weight:700;">
+              💾 저장하기
+            </button>
+          </div>
+        </div>
+
+        <!-- 등록된 카드 목록 표 -->
+        <div>
+          <h4 style="margin:0 0 10px;font-size:13.5px;color:#1e293b;font-weight:800;">
+            📋 현재 등록된 카드사 목록
+          </h4>
+          <div class="table-responsive">
+            <table class="simple-table">
+              <thead>
+                <tr>
+                  <th>카드사명</th>
+                  <th>명의자</th>
+                  <th>결제일</th>
+                  <th>청구기간</th>
+                  <th>비고 (특징/혜택)</th>
+                  <th style="text-align:center;">관리</th>
+                </tr>
+              </thead>
+              <tbody id="cardSettingsTableBody">
+                <!-- 동적 렌더링 -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-footer" style="padding: 12px 20px; display:flex; justify-content:flex-end; background:#f8fafc; border-top:1px solid #e2e8f0;">
+        <button type="button" class="btn btn-secondary" onclick="closeCardSettingsModal()">닫기</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 2. 🏦 통장 기본정보 등록·수정 모달 -->
+  <div class="modal-overlay" id="bankAccountModalOverlay" style="display:none;">
+    <div class="modal-card" style="max-width: 540px; border-radius: 14px; overflow: hidden; box-shadow: 0 20px 40px -10px rgba(0,0,0,0.3); padding: 0;">
+      <div class="modal-header" style="background:#065f46; color: #fff; padding: 16px 20px; display:flex; justify-content:space-between; align-items:center;">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <i data-feather="book" style="width:20px;height:20px;"></i>
+          <h3 style="margin: 0; font-size: 16px; font-weight: 800; color: #fff;" id="bankModalTitle">
+            🏦 통장 기본정보 등록
+          </h3>
+        </div>
+        <button type="button" class="modal-close-btn" onclick="closeBankAccountModal()" style="color:#fff;font-size:22px;border:none;background:none;cursor:pointer;">&times;</button>
+      </div>
+      <div class="modal-body" style="padding: 20px;">
+        <input type="hidden" id="formBankId">
+        <div class="form-grid-2">
+          <div class="form-group">
+            <label>은행명 *</label>
+            <select id="formBankName" class="form-control">
+              <option value="국민은행">국민은행</option>
+              <option value="기업은행" selected>기업은행</option>
+              <option value="신한은행">신한은행</option>
+              <option value="우리은행">우리은행</option>
+              <option value="하나은행">하나은행</option>
+              <option value="농협은행">농협은행</option>
+              <option value="카카오뱅크">카카오뱅크</option>
+              <option value="토스뱅크">토스뱅크</option>
+              <option value="우체국">우체국</option>
+              <option value="SC제일은행">SC제일은행</option>
+              <option value="기타은행">기타은행</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>명의 / 사업자 구분 *</label>
+            <select id="formBankBiz" class="form-control">
+              <option value="사업자A">사업자A</option>
+              <option value="사업자B">사업자B</option>
+              <option value="개인">개인</option>
+            </select>
+          </div>
+          <div class="form-group span-2">
+            <label>계좌명 (용도) *</label>
+            <input type="text" id="formBankAccName" class="form-control" placeholder="예: 스마트스토어 정산용 주거래 통장" required>
+          </div>
+          <div class="form-group span-2">
+            <label>계좌번호 *</label>
+            <input type="text" id="formBankAccNum" class="form-control" placeholder="예: 010-8829-1234 또는 110-345-678901" required>
+          </div>
+          <div class="form-group span-2">
+            <label>현재 잔액 (원) *</label>
+            <input type="number" id="formBankBalance" class="form-control" placeholder="0" required>
+          </div>
+          <div class="form-group span-2">
+            <label>비고 (메모)</label>
+            <input type="text" id="formBankNote" class="form-control" placeholder="예: 스마트스토어 및 쿠팡 정산금 입금 계좌">
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer" style="padding: 12px 20px; display:flex; justify-content:flex-end; gap:8px; background:#f8fafc; border-top:1px solid #e2e8f0;">
+        <button type="button" class="btn btn-secondary" onclick="closeBankAccountModal()">취소</button>
+        <button type="button" class="btn btn-primary" onclick="saveBankAccount()" style="background:#059669;font-weight:700;">💾 저장하기</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 3. ✍️ 통장 입출금 거래내역 직접 등록 모달 -->
+  <div class="modal-overlay" id="bankTxModalOverlay" style="display:none;">
+    <div class="modal-card" style="max-width: 500px; border-radius: 14px; overflow: hidden; box-shadow: 0 20px 40px -10px rgba(0,0,0,0.3); padding: 0;">
+      <div class="modal-header" style="background:#15803d; color: #fff; padding: 16px 20px; display:flex; justify-content:space-between; align-items:center;">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <i data-feather="edit-2" style="width:20px;height:20px;"></i>
+          <h3 style="margin: 0; font-size: 16px; font-weight: 800; color: #fff;">
+            ✍️ 통장 거래내역 직접 입력
+          </h3>
+        </div>
+        <button type="button" class="modal-close-btn" onclick="closeBankTxModal()" style="color:#fff;font-size:22px;border:none;background:none;cursor:pointer;">&times;</button>
+      </div>
+      <div class="modal-body" style="padding: 20px;">
+        <div class="form-grid-2">
+          <div class="form-group span-2">
+            <label>대상 통장 선택 *</label>
+            <select id="formTxBankId" class="form-control" required></select>
+          </div>
+          <div class="form-group">
+            <label>거래일자 *</label>
+            <input type="text" id="formTxDate" class="form-control" placeholder="2026-11-20" required>
+          </div>
+          <div class="form-group">
+            <label>입출금 구분 *</label>
+            <select id="formTxType" class="form-control">
+              <option value="입금" selected>🟢 입금 (통장 잔액 증가)</option>
+              <option value="출금">🔴 출금 (통장 잔액 차감)</option>
+            </select>
+          </div>
+          <div class="form-group span-2">
+            <label>거래금액 (원) *</label>
+            <input type="number" id="formTxAmount" class="form-control" placeholder="예: 350000" required>
+          </div>
+          <div class="form-group span-2">
+            <label>적요 / 거래내용 *</label>
+            <input type="text" id="formTxSummary" class="form-control" placeholder="예: 스마트스토어 11월 2차 정산금, 국민카드 결제대금 출금" required>
+          </div>
+          <div class="form-group span-2">
+            <label>비고 (상세 메모)</label>
+            <input type="text" id="formTxNote" class="form-control" placeholder="선택사항">
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer" style="padding: 12px 20px; display:flex; justify-content:flex-end; gap:8px; background:#f8fafc; border-top:1px solid #e2e8f0;">
+        <button type="button" class="btn btn-secondary" onclick="closeBankTxModal()">취소</button>
+        <button type="button" class="btn btn-primary" onclick="saveBankTx()" style="background:#15803d;font-weight:700;">💾 등록하기</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 4. 📥 통장 엑셀 파일 업로드 모달 -->
+  <div class="modal-overlay" id="bankUploadModalOverlay" style="display:none;">
+    <div class="modal-card" style="max-width: 580px; border-radius: 14px; overflow: hidden; box-shadow: 0 20px 40px -10px rgba(0,0,0,0.3); padding: 0;">
+      <div class="modal-header" style="background:#0f766e; color: #fff; padding: 16px 20px; display:flex; justify-content:space-between; align-items:center;">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <i data-feather="upload-cloud" style="width:20px;height:20px;"></i>
+          <h3 style="margin: 0; font-size: 16px; font-weight: 800; color: #fff;">
+            📥 통장 엑셀/CSV 거래내역 일괄 등록
+          </h3>
+        </div>
+        <button type="button" class="modal-close-btn" onclick="closeBankUploadModal()" style="color:#fff;font-size:22px;border:none;background:none;cursor:pointer;">&times;</button>
+      </div>
+      <div class="modal-body" style="padding: 20px;">
+        <div class="form-group" style="margin-bottom:14px;">
+          <label style="font-weight:700;color:#1e293b;">내역을 등록할 대상 통장 선택 *</label>
+          <select id="formUploadBankId" class="form-control"></select>
+        </div>
+        <div class="upload-dropzone" id="bankDropzone" style="border:2px dashed #0d9488;background:#f0fdfa;border-radius:12px;padding:32px 20px;text-align:center;cursor:pointer;">
+          <i data-feather="file-text" style="width:40px;height:40px;color:#0d9488;margin-bottom:10px;"></i>
+          <h4 style="margin:0 0 6px;color:#134e4a;font-size:15px;font-weight:800;">은행 거래내역 엑셀 파일 선택 또는 드래그앤드롭</h4>
+          <p style="font-size:12.5px;color:#64748b;margin:0 0 12px;">.xlsx, .xls, .csv 파일을 지원합니다</p>
+          <input type="file" id="bankFileInput" accept=".xlsx,.xls,.csv" style="display:none;" onchange="handleBankFileSelected(event)">
+          <button type="button" class="btn btn-sm" onclick="document.getElementById('bankFileInput').click()" style="background:#0d9488;color:#fff;font-weight:700;border:none;padding:6px 16px;border-radius:6px;">
+            파일 찾아보기
+          </button>
+        </div>
+        <div style="margin-top:14px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px 14px;font-size:12px;color:#475569;line-height:1.5;">
+          💡 <strong>자동 컬럼 매핑 지원</strong>: 은행 엑셀의 [거래일시 / 거래일], [입금액], [출금액], [적요 / 거래내용], [잔액] 열을 자동으로 감지하여 스마트하게 등록해 드립니다.
+        </div>
+      </div>
+      <div class="modal-footer" style="padding: 12px 20px; display:flex; justify-content:flex-end; background:#f8fafc; border-top:1px solid #e2e8f0;">
+        <button type="button" class="btn btn-secondary" onclick="closeBankUploadModal()">닫기</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 5. 💸 판관비/추가 비용 등록·관리 모달 -->
+  <div class="modal-overlay" id="customExpenseModalOverlay" style="display:none;">
+    <div class="modal-card" style="max-width: 720px; border-radius: 14px; overflow: hidden; box-shadow: 0 20px 40px -10px rgba(0,0,0,0.3); padding: 0;">
+      <div class="modal-header" style="background:#dc2626; color: #fff; padding: 16px 20px; display:flex; justify-content:space-between; align-items:center;">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <i data-feather="dollar-sign" style="width:20px;height:20px;"></i>
+          <h3 style="margin: 0; font-size: 16px; font-weight: 800; color: #fff;">
+            💸 판매비 및 일반관리비(SG&A) 추가 비용 등록·관리
+          </h3>
+        </div>
+        <button type="button" class="modal-close-btn" onclick="closeCustomExpenseModal()" style="color:#fff;font-size:22px;border:none;background:none;cursor:pointer;">&times;</button>
+      </div>
+      <div class="modal-body" style="padding: 20px; max-height: 75vh; overflow-y: auto;">
+        <!-- 신규 비용 입력 폼 -->
+        <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:12px;padding:16px;margin-bottom:20px;">
+          <h4 style="margin:0 0 12px;font-size:14px;color:#991b1b;font-weight:800;">
+            + 신규 비용(판관비) 등록
+          </h4>
+          <div class="form-grid-3">
+            <div class="form-group">
+              <label>비용 분류 *</label>
+              <select id="formExpCategory" class="form-control">
+                <option value="고정비">고정비 (월세, 관리비 등)</option>
+                <option value="광고비">광고/마케팅비</option>
+                <option value="프로그램비">프로그램/솔루션 이용료</option>
+                <option value="통신비">통신비/인터넷</option>
+                <option value="인건비">인건비/알바비</option>
+                <option value="포장부자재">포장/부자재비</option>
+                <option value="기타비용" selected>기타 잡비</option>
+              </select>
+            </div>
+            <div class="form-group span-2">
+              <label>비용 항목명 *</label>
+              <input type="text" id="formExpTitle" class="form-control" placeholder="예: 쿠팡 판매자 광고비, 플레이오토 월 이용료, 사무실 월세" required>
+            </div>
+            <div class="form-group">
+              <label>금액 (원) *</label>
+              <input type="number" id="formExpAmount" class="form-control" placeholder="50000" required>
+            </div>
+            <div class="form-group">
+              <label>해당 사업자</label>
+              <select id="formExpBiz" class="form-control">
+                <option value="ALL">통합 공통</option>
+                <option value="사업자A">사업자A</option>
+                <option value="사업자B">사업자B</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>적용 월 (YYYY-MM)</label>
+              <input type="month" id="formExpMonth" class="form-control" value="2026-11">
+            </div>
+            <div class="form-group span-3">
+              <label>비고 (상세 메모)</label>
+              <input type="text" id="formExpNote" class="form-control" placeholder="선택사항">
+            </div>
+          </div>
+          <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:12px;">
+            <button type="button" class="btn btn-primary btn-sm" onclick="saveCustomExpense()" style="background:#dc2626;font-weight:700;">
+              💾 비용 저장하기
+            </button>
+          </div>
+        </div>
+
+        <!-- 등록된 비용 목록 -->
+        <div>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+            <h4 style="margin:0;font-size:13.5px;color:#1e293b;font-weight:800;">
+              📋 등록된 판관비 항목 목록
+            </h4>
+            <span style="font-size:12.5px;color:#dc2626;font-weight:800;">
+              총 합계: <span id="customExpTotalBadge">0원</span>
+            </span>
+          </div>
+          <div class="table-responsive">
+            <table class="simple-table">
+              <thead>
+                <tr>
+                  <th>분류</th>
+                  <th>항목명</th>
+                  <th style="text-align:right;">월 비용</th>
+                  <th>사업자</th>
+                  <th>적용월</th>
+                  <th style="text-align:center;">관리</th>
+                </tr>
+              </thead>
+              <tbody id="customExpenseTableBody">
+                <!-- 동적 렌더링 -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer" style="padding: 12px 20px; display:flex; justify-content:flex-end; background:#f8fafc; border-top:1px solid #e2e8f0;">
+        <button type="button" class="btn btn-secondary" onclick="closeCustomExpenseModal()">닫기</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 6. 💎 자산 & 부채 등록·관리 모달 (순자산 반영) -->
+  <div class="modal-overlay" id="customAssetModalOverlay" style="display:none;">
+    <div class="modal-card" style="max-width: 720px; border-radius: 14px; overflow: hidden; box-shadow: 0 20px 40px -10px rgba(0,0,0,0.3); padding: 0;">
+      <div class="modal-header" style="background:#4f46e5; color: #fff; padding: 16px 20px; display:flex; justify-content:space-between; align-items:center;">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <i data-feather="shield" style="width:20px;height:20px;"></i>
+          <h3 style="margin: 0; font-size: 16px; font-weight: 800; color: #fff;">
+            💎 알짜 순자산 반영용 자산 & 부채 등록·관리
+          </h3>
+        </div>
+        <button type="button" class="modal-close-btn" onclick="closeCustomAssetModal()" style="color:#fff;font-size:22px;border:none;background:none;cursor:pointer;">&times;</button>
+      </div>
+      <div class="modal-body" style="padding: 20px; max-height: 75vh; overflow-y: auto;">
+        <!-- 신규 자산/부채 입력 폼 -->
+        <div style="background:#eef2ff;border:1px solid #c7d2fe;border-radius:12px;padding:16px;margin-bottom:20px;">
+          <h4 style="margin:0 0 12px;font-size:14px;color:#3730a3;font-weight:800;">
+            + 자산 또는 부채 항목 신규 등록
+          </h4>
+          <div class="form-grid-3">
+            <div class="form-group">
+              <label>구분 (자산 vs 부채) *</label>
+              <select id="formAssetType" class="form-control">
+                <option value="자산" selected>🟢 자산 (+) (순자산 증가)</option>
+                <option value="부채">🔴 부채 (-) (순자산 차감)</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>분류</label>
+              <select id="formAssetCategory" class="form-control">
+                <option value="임차보증금">사무실/창고 보증금</option>
+                <option value="업무용차량">업무용 차량</option>
+                <option value="비품및장비">컴퓨터/비품/설비</option>
+                <option value="예적금/투자">예적금/청약/투자금</option>
+                <option value="대출금">대출금/차입금</option>
+                <option value="기타" selected>기타 자산/부채</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>사업자</label>
+              <select id="formAssetBiz" class="form-control">
+                <option value="ALL">통합 공통</option>
+                <option value="사업자A">사업자A</option>
+                <option value="사업자B">사업자B</option>
+              </select>
+            </div>
+            <div class="form-group span-2">
+              <label>항목명 *</label>
+              <input type="text" id="formAssetTitle" class="form-control" placeholder="예: 사무실 임차보증금, 배송용 레이 밴, 정부지원 대출금" required>
+            </div>
+            <div class="form-group">
+              <label>평가 금액 (원) *</label>
+              <input type="number" id="formAssetAmount" class="form-control" placeholder="10000000" required>
+            </div>
+            <div class="form-group span-3">
+              <label>비고 (상세 메모)</label>
+              <input type="text" id="formAssetNote" class="form-control" placeholder="선택사항">
+            </div>
+          </div>
+          <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:12px;">
+            <button type="button" class="btn btn-primary btn-sm" onclick="saveCustomAsset()" style="background:#4f46e5;font-weight:700;">
+              💾 항목 저장하기
+            </button>
+          </div>
+        </div>
+
+        <!-- 등록된 자산/부채 목록 -->
+        <div>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+            <h4 style="margin:0;font-size:13.5px;color:#1e293b;font-weight:800;">
+              📋 등록된 자산 및 부채 목록
+            </h4>
+            <div style="font-size:12.5px;">
+              <span style="color:#059669;font-weight:700;margin-right:10px;">추가 자산: <span id="customAssetTotalBadge">+0원</span></span>
+              <span style="color:#dc2626;font-weight:700;">등록 부채: <span id="customDebtTotalBadge">-0원</span></span>
+            </div>
+          </div>
+          <div class="table-responsive">
+            <table class="simple-table">
+              <thead>
+                <tr>
+                  <th>구분</th>
+                  <th>분류</th>
+                  <th>항목명</th>
+                  <th style="text-align:right;">금액</th>
+                  <th>사업자</th>
+                  <th style="text-align:center;">관리</th>
+                </tr>
+              </thead>
+              <tbody id="customAssetTableBody">
+                <!-- 동적 렌더링 -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer" style="padding: 12px 20px; display:flex; justify-content:flex-end; background:#f8fafc; border-top:1px solid #e2e8f0;">
+        <button type="button" class="btn btn-secondary" onclick="closeCustomAssetModal()">닫기</button>
       </div>
     </div>
   </div>

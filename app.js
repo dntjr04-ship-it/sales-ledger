@@ -14,14 +14,31 @@ const AppState = {
   selectedOrderStage: 'ALL',  // 주문구분 필터 (대기/완료/취소/반품/교환)
   selectedPurchaseStage: 'ALL',// 발주상태 필터 (완료/반품/취소)
 
-  // 통장 데이터 (기본 모의 데이터)
+  // 1. 카드사 결제일 & 청구기간 관리
+  cardSettings: [
+    { id: 'card_kb_a', name: '국민카드', holder: '강우석', payDay: 14, billingStartDay: 1, billingEndDay: 31, billingDesc: '전월 1일 ~ 전월 말일', theme: 'theme-kb', note: '소싱처(G마켓, 11번가) 전용, 실적 30만 이상 2% 캐시백' },
+    { id: 'card_samsung_a', name: '삼성카드', holder: '강우석', payDay: 25, billingStartDay: 14, billingEndDay: 13, billingDesc: '전전월 14일 ~ 전월 13일', theme: 'theme-samsung', note: '쿠팡 로켓소싱 전용, 무조건 1.2% 포인트' },
+    { id: 'card_woori_b', name: '우리카드', holder: '강우석', payDay: 14, billingStartDay: 1, billingEndDay: 31, billingDesc: '전월 1일 ~ 전월 말일', theme: 'theme-woori', note: '스마트스토어 결제용, 무이자 6개월 할부 혜택' },
+    { id: 'card_smile_b', name: '스마일카드 Edition3', holder: 'tjrdnrkd', payDay: 10, billingStartDay: 28, billingEndDay: 27, billingDesc: '전전월 28일 ~ 전월 27일', theme: 'theme-smile', note: 'G마켓/옥션 2% 스마일캐시 적립' }
+  ],
+  selectedCardKey: null,
+  selectedCardTxTab: 'ALL', // 'ALL', 'CURRENT', 'NEXT'
+
+  // 2. 통장 데이터 (기본 모의 데이터)
   bankAccounts: [
-    { id: 1, name: '기업은행 (주거래 통장)', accountNum: '010-8829-1234', balance: 14500000, biz: '사업자A' },
-    { id: 2, name: '국민은행 (스마트스토어 전용)', accountNum: '421002-01-9988', balance: 8200000, biz: '사업자A' },
-    { id: 3, name: '신한은행 (쿠팡/올웨이즈 전용)', accountNum: '110-345-678901', balance: 11300000, biz: '사업자B' }
+    { id: 1, bankName: '기업은행', name: '기업은행 (주거래 통장)', accountName: '주거래 사업자 통장', accountNum: '010-8829-1234', balance: 14500000, biz: '사업자A', note: '스마트스토어 및 주요 오픈마켓 정산 계좌' },
+    { id: 2, bankName: '국민은행', name: '국민은행 (스마트스토어 전용)', accountName: '스마트스토어 전용', accountNum: '421002-01-9988', balance: 8200000, biz: '사업자A', note: '국민카드 결제대금 자동이체 계좌' },
+    { id: 3, bankName: '신한은행', name: '신한은행 (쿠팡/올웨이즈 전용)', accountName: '쿠팡/올웨이즈 전용', accountNum: '110-345-678901', balance: 11300000, biz: '사업자B', note: '쿠팡 정산금 입금 및 세금 적립 계좌' }
   ],
 
-  // 판매처별 기입금 완료 내역 (모의 데이터: 정산 완료된 금액)
+  // 2-B. 통장 거래내역 (입출금 장부)
+  bankTransactions: [
+    { id: 101, accountId: 1, bankName: '기업은행', accountName: '기업은행 (주거래 통장)', accountNum: '010-8829-1234', date: '2026-11-15 10:30', type: '입금', amount: 3500000, balanceAfter: 14500000, summary: '스마트스토어 11월 1차 정산금 입금', note: '네이버페이' },
+    { id: 102, accountId: 2, bankName: '국민은행', accountName: '국민은행 (스마트스토어 전용)', accountNum: '421002-01-9988', date: '2026-11-14 14:00', type: '출금', amount: 1250000, balanceAfter: 8200000, summary: '국민카드 11월 결제대금 출금', note: '자동이체' },
+    { id: 103, accountId: 3, bankName: '신한은행', accountName: '신한은행 (쿠팡/올웨이즈 전용)', accountNum: '110-345-678901', date: '2026-11-10 11:20', type: '입금', amount: 2100000, balanceAfter: 11300000, summary: '쿠팡 11월 주정산금 입금', note: '쿠팡 윙' }
+  ],
+
+  // 3. 판매처별 기입금 완료 내역
   marketSettlements: {
     '스마트스토어': 45000,
     '쿠팡(신)': 320000,
@@ -30,6 +47,19 @@ const AppState = {
     '카카오 톡스토어': 150000,
     '옥션': 20000
   },
+
+  // 3-B. 손익계산서 & 순자산 (판관비 및 자산/부채)
+  customExpenses: [
+    { id: 'exp_1', category: '광고비', title: '쿠팡 키워드 검색광고', amount: 150000, biz: '사업자B', month: '2026-11', note: '쿠팡 윙 판매자 광고 집행비' },
+    { id: 'exp_2', category: '프로그램비', title: '플레이오토 쇼핑몰 통합관리 솔루션', amount: 55000, biz: 'ALL', month: '2026-11', note: '주문수집 및 송장자동등록 솔루션 월이용료' }
+  ],
+  customAssets: [
+    { id: 'asset_1', type: '자산', category: '임차보증금', title: '사무실 임차보증금', amount: 20000000, biz: '사업자A', note: '마포구 사무실 보증금' },
+    { id: 'asset_2', type: '부채', category: '대출금', title: '소상공인 정책자금 운전자금 대출', amount: 10000000, biz: '사업자A', note: '신용보증재단 2.5% 저리대출' }
+  ],
+
+  // 4. 주문장 뷰 모드 ('list', 'daily', 'monthly')
+  ordersViewMode: 'list',
 
   // 사용자 권한 상태
   currentUser: {
@@ -398,12 +428,20 @@ const INLINE_SAMPLE_CSV = `주문고유번호,판매사이트명,판매자ID,수
 const STORAGE_KEY_ORDERS = 'LISA_SALES_ORDERS_V2';
 const STORAGE_KEY_BANKS = 'LISA_BANK_ACCOUNTS_V2';
 const STORAGE_KEY_SETTLE = 'LISA_MARKET_SETTLEMENTS_V2';
+const STORAGE_KEY_CARDS = 'LISA_CARD_SETTINGS_V1';
+const STORAGE_KEY_BANK_TX = 'LISA_BANK_TRANSACTIONS_V1';
+const STORAGE_KEY_EXPENSES = 'LISA_CUSTOM_EXPENSES_V1';
+const STORAGE_KEY_ASSETS = 'LISA_CUSTOM_ASSETS_V1';
 
 function saveStateToStorage() {
   try {
     localStorage.setItem(STORAGE_KEY_ORDERS, JSON.stringify(AppState.rawOrders));
     localStorage.setItem(STORAGE_KEY_BANKS, JSON.stringify(AppState.bankAccounts));
     localStorage.setItem(STORAGE_KEY_SETTLE, JSON.stringify(AppState.marketSettlements));
+    localStorage.setItem(STORAGE_KEY_CARDS, JSON.stringify(AppState.cardSettings));
+    localStorage.setItem(STORAGE_KEY_BANK_TX, JSON.stringify(AppState.bankTransactions));
+    localStorage.setItem(STORAGE_KEY_EXPENSES, JSON.stringify(AppState.customExpenses));
+    localStorage.setItem(STORAGE_KEY_ASSETS, JSON.stringify(AppState.customAssets));
   } catch (err) {
     console.warn('LocalStorage 저장 실패:', err);
   }
@@ -414,12 +452,28 @@ function loadStateFromStorage() {
     const savedOrders = localStorage.getItem(STORAGE_KEY_ORDERS);
     const savedBanks = localStorage.getItem(STORAGE_KEY_BANKS);
     const savedSettle = localStorage.getItem(STORAGE_KEY_SETTLE);
+    const savedCards = localStorage.getItem(STORAGE_KEY_CARDS);
+    const savedBankTx = localStorage.getItem(STORAGE_KEY_BANK_TX);
+    const savedExpenses = localStorage.getItem(STORAGE_KEY_EXPENSES);
+    const savedAssets = localStorage.getItem(STORAGE_KEY_ASSETS);
 
     if (savedBanks) {
       AppState.bankAccounts = JSON.parse(savedBanks);
     }
     if (savedSettle) {
       AppState.marketSettlements = JSON.parse(savedSettle);
+    }
+    if (savedCards) {
+      AppState.cardSettings = JSON.parse(savedCards);
+    }
+    if (savedBankTx) {
+      AppState.bankTransactions = JSON.parse(savedBankTx);
+    }
+    if (savedExpenses) {
+      AppState.customExpenses = JSON.parse(savedExpenses);
+    }
+    if (savedAssets) {
+      AppState.customAssets = JSON.parse(savedAssets);
     }
 
     if (savedOrders) {
@@ -1170,17 +1224,345 @@ function renderOrdersTable() {
   });
 
   tbody.innerHTML = html;
+
+  // 일별 및 월별 집계표도 함께 동기화 갱신 ⭐
+  renderOrdersDailyTable();
+  renderOrdersMonthlyTable();
+}
+
+/**
+ * 주문장 뷰 모드 전환 (상세 주문장 / 일별 집계표 / 월별 집계표)
+ */
+function switchOrdersViewTab(tab) {
+  AppState.ordersViewMode = tab;
+  const listCont = document.getElementById('ordersListContainer');
+  const dailyCont = document.getElementById('ordersDailyContainer');
+  const monthlyCont = document.getElementById('ordersMonthlyContainer');
+  const btnList = document.getElementById('btnViewOrdersList');
+  const btnDaily = document.getElementById('btnViewOrdersDaily');
+  const btnMonthly = document.getElementById('btnViewOrdersMonthly');
+  const desc = document.getElementById('ordersViewTabDesc');
+
+  if (btnList && btnDaily && btnMonthly) {
+    btnList.classList.toggle('active', tab === 'list');
+    btnDaily.classList.toggle('active', tab === 'daily');
+    btnMonthly.classList.toggle('active', tab === 'monthly');
+  }
+
+  if (listCont) listCont.style.display = (tab === 'list') ? 'block' : 'none';
+  if (dailyCont) dailyCont.style.display = (tab === 'daily') ? 'block' : 'none';
+  if (monthlyCont) monthlyCont.style.display = (tab === 'monthly') ? 'block' : 'none';
+
+  if (desc) {
+    if (tab === 'list') desc.textContent = '💡 모든 주문 건의 판매·매입·마진 상세 내역을 1줄로 확인하고 관리합니다.';
+    else if (tab === 'daily') desc.textContent = '📅 주문일자별 주문건수, 총 판매액, 매입원가 및 일별 마진 집계표입니다.';
+    else if (tab === 'monthly') desc.textContent = '📆 월별 실적 추이, 매출액, 정산예정액, 매입원가 및 월간 누적 마진 집계표입니다.';
+  }
+
+  if (tab === 'daily') renderOrdersDailyTable();
+  if (tab === 'monthly') renderOrdersMonthlyTable();
+  if (window.feather) feather.replace();
+}
+
+/**
+ * 일별 매입·매출 집계표 렌더링
+ */
+function renderOrdersDailyTable() {
+  const tbody = document.getElementById('ordersDailyTableBody');
+  const tfoot = document.getElementById('ordersDailyTableFoot');
+  if (!tbody) return;
+
+  const countable = getCountableOrders();
+  const dayMap = {};
+
+  countable.forEach(o => {
+    const day = formatOrderDateOnly(o.orderDate);
+    if (!day || day === '-') return;
+
+    if (!dayMap[day]) {
+      dayMap[day] = {
+        date: day,
+        count: 0,
+        grossSales: 0,
+        settleDue: 0,
+        cost: 0,
+        margin: 0
+      };
+    }
+
+    const settleAmt = (o.actualSettlement > 0) ? o.actualSettlement : o.standardPrice;
+    const actualCost = getOrderActualCost(o);
+    const mAmount = Math.round(settleAmt - actualCost);
+
+    dayMap[day].count += 1;
+    dayMap[day].grossSales += (o.totalSales || 0);
+    dayMap[day].settleDue += settleAmt;
+    dayMap[day].cost += actualCost;
+    dayMap[day].margin += mAmount;
+  });
+
+  const days = Object.values(dayMap).sort((a, b) => b.date.localeCompare(a.date));
+
+  if (days.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:30px;color:#94a3b8;">집계할 완료 주문 데이터가 없습니다.</td></tr>';
+    if (tfoot) tfoot.innerHTML = '';
+    return;
+  }
+
+  let totalCount = 0;
+  let totalSales = 0;
+  let totalSettle = 0;
+  let totalCost = 0;
+  let totalMargin = 0;
+
+  const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
+
+  tbody.innerHTML = days.map(d => {
+    totalCount += d.count;
+    totalSales += d.grossSales;
+    totalSettle += d.settleDue;
+    totalCost += d.cost;
+    totalMargin += d.margin;
+
+    const mRate = d.settleDue > 0 ? (d.margin / d.settleDue) * 100 : 0;
+    const dObj = new Date(d.date);
+    const dName = !isNaN(dObj.getDay()) ? `(${dayNames[dObj.getDay()]})` : '';
+
+    return `
+      <tr>
+        <td style="text-align:center;font-weight:700;color:#1e293b;">
+          ${d.date} <span style="font-size:11px;color:#64748b;">${dName}</span>
+        </td>
+        <td style="text-align:center;"><strong>${d.count}건</strong></td>
+        <td style="text-align:right;">${formatKRW(d.grossSales)}</td>
+        <td style="text-align:right;color:#1e40af;font-weight:700;">${formatKRW(d.settleDue)}</td>
+        <td style="text-align:right;color:#dc2626;">${formatKRW(d.cost)}</td>
+        <td style="text-align:right;color:#059669;font-weight:800;">+${formatKRW(d.margin)}</td>
+        <td style="text-align:center;">
+          <span class="badge" style="background:${mRate >= 20 ? '#ecfdf5' : '#eff6ff'};color:${mRate >= 20 ? '#059669' : '#1d4ed8'};font-weight:800;">
+            ${mRate.toFixed(1)}%
+          </span>
+        </td>
+        <td style="text-align:center;">
+          <button class="btn btn-sm btn-secondary" onclick="filterOrdersByDate('${d.date}')" style="font-size:11px;padding:3px 8px;">
+            🔍 주문보기
+          </button>
+        </td>
+      </tr>
+    `;
+  }).join('');
+
+  if (tfoot) {
+    const avgRate = totalSettle > 0 ? (totalMargin / totalSettle) * 100 : 0;
+    tfoot.innerHTML = `
+      <tr style="background:#f8fafc;border-top:2px solid #cbd5e1;">
+        <td style="text-align:center;font-weight:800;">총 합계</td>
+        <td style="text-align:center;font-weight:800;">${totalCount}건</td>
+        <td style="text-align:right;font-weight:800;">${formatKRW(totalSales)}</td>
+        <td style="text-align:right;font-weight:800;color:#1e40af;">${formatKRW(totalSettle)}</td>
+        <td style="text-align:right;font-weight:800;color:#dc2626;">${formatKRW(totalCost)}</td>
+        <td style="text-align:right;font-weight:800;color:#059669;">+${formatKRW(totalMargin)}</td>
+        <td style="text-align:center;font-weight:800;">${avgRate.toFixed(1)}%</td>
+        <td style="text-align:center;">-</td>
+      </tr>
+    `;
+  }
+}
+
+/**
+ * 월별 매입·매출 집계표 렌더링
+ */
+function renderOrdersMonthlyTable() {
+  const tbody = document.getElementById('ordersMonthlyTableBody');
+  const tfoot = document.getElementById('ordersMonthlyTableFoot');
+  if (!tbody) return;
+
+  const countable = getCountableOrders();
+  const monthMap = {};
+
+  countable.forEach(o => {
+    const day = formatOrderDateOnly(o.orderDate);
+    if (!day || day === '-') return;
+    const monthKey = day.substring(0, 7); // YYYY-MM
+
+    if (!monthMap[monthKey]) {
+      monthMap[monthKey] = {
+        month: monthKey,
+        count: 0,
+        grossSales: 0,
+        settleDue: 0,
+        cost: 0,
+        margin: 0
+      };
+    }
+
+    const settleAmt = (o.actualSettlement > 0) ? o.actualSettlement : o.standardPrice;
+    const actualCost = getOrderActualCost(o);
+    const mAmount = Math.round(settleAmt - actualCost);
+
+    monthMap[monthKey].count += 1;
+    monthMap[monthKey].grossSales += (o.totalSales || 0);
+    monthMap[monthKey].settleDue += settleAmt;
+    monthMap[monthKey].cost += actualCost;
+    monthMap[monthKey].margin += mAmount;
+  });
+
+  const months = Object.values(monthMap).sort((a, b) => b.month.localeCompare(a.month));
+
+  if (months.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:30px;color:#94a3b8;">집계할 완료 주문 데이터가 없습니다.</td></tr>';
+    if (tfoot) tfoot.innerHTML = '';
+    return;
+  }
+
+  let totalCount = 0;
+  let totalSales = 0;
+  let totalSettle = 0;
+  let totalCost = 0;
+  let totalMargin = 0;
+
+  tbody.innerHTML = months.map(m => {
+    totalCount += m.count;
+    totalSales += m.grossSales;
+    totalSettle += m.settleDue;
+    totalCost += m.cost;
+    totalMargin += m.margin;
+
+    const mRate = m.settleDue > 0 ? (m.margin / m.settleDue) * 100 : 0;
+    const parts = m.month.split('-');
+    const label = `${parts[0]}년 ${parseInt(parts[1], 10)}월`;
+
+    return `
+      <tr>
+        <td style="text-align:center;font-weight:800;color:#1e3a8a;font-size:14px;">
+          ${label}
+        </td>
+        <td style="text-align:center;"><strong>${m.count}건</strong></td>
+        <td style="text-align:right;">${formatKRW(m.grossSales)}</td>
+        <td style="text-align:right;color:#1e40af;font-weight:700;">${formatKRW(m.settleDue)}</td>
+        <td style="text-align:right;color:#dc2626;">${formatKRW(m.cost)}</td>
+        <td style="text-align:right;color:#059669;font-weight:800;">+${formatKRW(m.margin)}</td>
+        <td style="text-align:center;">
+          <span class="badge" style="background:${mRate >= 20 ? '#ecfdf5' : '#eff6ff'};color:${mRate >= 20 ? '#059669' : '#1d4ed8'};font-weight:800;">
+            ${mRate.toFixed(1)}%
+          </span>
+        </td>
+        <td style="text-align:center;">
+          <button class="btn btn-sm btn-secondary" onclick="filterOrdersByDate('${m.month}')" style="font-size:11px;padding:3px 8px;">
+            🔍 주문보기
+          </button>
+        </td>
+      </tr>
+    `;
+  }).join('');
+
+  if (tfoot) {
+    const avgRate = totalSettle > 0 ? (totalMargin / totalSettle) * 100 : 0;
+    tfoot.innerHTML = `
+      <tr style="background:#f8fafc;border-top:2px solid #cbd5e1;">
+        <td style="text-align:center;font-weight:800;">누적 연간 합계</td>
+        <td style="text-align:center;font-weight:800;">${totalCount}건</td>
+        <td style="text-align:right;font-weight:800;">${formatKRW(totalSales)}</td>
+        <td style="text-align:right;font-weight:800;color:#1e40af;">${formatKRW(totalSettle)}</td>
+        <td style="text-align:right;font-weight:800;color:#dc2626;">${formatKRW(totalCost)}</td>
+        <td style="text-align:right;font-weight:800;color:#059669;">+${formatKRW(totalMargin)}</td>
+        <td style="text-align:center;font-weight:800;">${avgRate.toFixed(1)}%</td>
+        <td style="text-align:center;">-</td>
+      </tr>
+    `;
+  }
+}
+
+/**
+ * 일자 또는 월을 검색창에 입력하여 상세 주문장으로 즉시 이동 필터링
+ */
+function filterOrdersByDate(dateOrMonthStr) {
+  switchOrdersViewTab('list');
+  const input = document.getElementById('orderSearchInput');
+  if (input) {
+    input.value = dateOrMonthStr;
+    AppState.searchQuery = dateOrMonthStr.trim().toLowerCase();
+    renderOrdersTable();
+  }
 }
 
 /**
  * 3. 카드사 결제 관리 (카드명의 구분)
  */
+/**
+ * 3. 카드사 결제 관리 (카드명의자·결제일·청구기간 연동 및 당월/다음월 결제분할 엔진)
+ */
+
+/**
+ * 주문 결제일시가 해당 카드의 당월 결제분인지, 다음월 결제분인지 계산
+ */
+function calcCardBillingSplit(orderDateStr, cardSetting) {
+  if (!orderDateStr) return 'CURRENT';
+  const cleanDate = orderDateStr.trim().split(' ')[0]; // YYYY-MM-DD
+  const parts = cleanDate.split('-');
+  if (parts.length < 3) return 'CURRENT';
+
+  const orderYear = parseInt(parts[0], 10);
+  const orderMonth = parseInt(parts[1], 10);
+  const orderDay = parseInt(parts[2], 10);
+
+  // 현재 시스템 기준 월 (2026년 11월)
+  const curYear = 2026;
+  const curMonth = 11;
+
+  const payDay = (cardSetting && cardSetting.payDay) ? parseInt(cardSetting.payDay, 10) : 14;
+  const billingDesc = (cardSetting && cardSetting.billingDesc) ? cardSetting.billingDesc : '전월 1일 ~ 전월 말일';
+
+  // 표준 14일 전후 결제 (전월 1일 ~ 전월 말일 이용분)
+  if (billingDesc.includes('전월 1일') || payDay <= 15) {
+    if (orderYear === curYear && orderMonth === (curMonth - 1)) {
+      return 'CURRENT'; // 10월 결제분 -> 11월 결제일에 청구
+    } else if (orderYear === curYear && orderMonth === curMonth) {
+      return 'NEXT';    // 11월 결제분 -> 12월 결제일에 청구
+    } else if (orderYear === curYear && orderMonth < (curMonth - 1)) {
+      return 'CURRENT'; // 과거분
+    } else {
+      return 'NEXT';
+    }
+  } else {
+    // 25일 결제 등 (전전월 14일 ~ 전월 13일 이용분)
+    const orderNum = orderMonth * 100 + orderDay;
+    if (orderNum <= (curMonth - 1) * 100 + 13) {
+      return 'CURRENT';
+    } else {
+      return 'NEXT';
+    }
+  }
+}
+
 function renderCardsView() {
   const grid = document.getElementById('cardsDetailGrid');
   const tbody = document.getElementById('cardTransactionsTableBody');
   const allOrders = getBizOrders().filter(o => o.purchaseStage === '완료');
 
   const cardMap = {};
+
+  // 1. 등록된 카드 세팅 기반으로 기본 맵 구성
+  AppState.cardSettings.forEach(s => {
+    const cardKey = s.holder ? `${s.name} (${s.holder})` : s.name;
+    cardMap[cardKey] = {
+      name: s.name,
+      holder: s.holder || '명의미지정',
+      displayName: cardKey,
+      payDay: s.payDay || 14,
+      billingDesc: s.billingDesc || '전월 1일 ~ 전월 말일',
+      theme: s.theme || 'theme-samsung',
+      note: s.note || '',
+      settingId: s.id,
+      total: 0,
+      currentDue: 0,
+      nextDue: 0,
+      count: 0,
+      platforms: new Set()
+    };
+  });
+
+  // 2. 주문 결제 데이터 집계 및 당월/다음월 분할
   allOrders.forEach(o => {
     if (o.paymentCard && o.purchaseCost > 0) {
       const cardKey = o.cardHolder ? `${o.paymentCard} (${o.cardHolder})` : o.paymentCard;
@@ -1189,70 +1571,343 @@ function renderCardsView() {
           name: o.paymentCard,
           holder: o.cardHolder || '명의미지정',
           displayName: cardKey,
+          payDay: 14,
+          billingDesc: '전월 1일 ~ 전월 말일',
+          theme: 'theme-samsung',
+          note: '',
+          settingId: null,
           total: 0,
+          currentDue: 0,
+          nextDue: 0,
           count: 0,
           platforms: new Set()
         };
       }
-      cardMap[cardKey].total += o.purchaseCost;
-      cardMap[cardKey].count += 1;
-      if (o.sourcingPlatform) cardMap[cardKey].platforms.add(o.sourcingPlatform);
+      const entry = cardMap[cardKey];
+      entry.total += o.purchaseCost;
+      entry.count += 1;
+      if (o.sourcingPlatform) entry.platforms.add(o.sourcingPlatform);
+
+      const split = calcCardBillingSplit(o.paymentDate || o.orderDate, entry);
+      if (split === 'CURRENT') {
+        entry.currentDue += o.purchaseCost;
+      } else {
+        entry.nextDue += o.purchaseCost;
+      }
     }
   });
 
   const cards = Object.values(cardMap);
 
+  // 3. 카드 그리드 렌더링
   if (grid) {
     if (cards.length === 0) {
-      grid.innerHTML = '<div style="padding:30px;color:#94a3b8;">결제 내역이 없습니다.</div>';
+      grid.innerHTML = '<div style="padding:30px;color:#94a3b8;">등록되거나 사용된 결제 카드가 없습니다.</div>';
     } else {
       grid.innerHTML = cards.map(c => {
-        let theme = 'theme-samsung';
+        let theme = c.theme || 'theme-samsung';
         if (c.name.includes('국민')) theme = 'theme-kb';
         else if (c.name.includes('우리')) theme = 'theme-woori';
         else if (c.name.includes('스마일')) theme = 'theme-smile';
 
+        const isSelected = AppState.selectedCardKey === c.displayName;
+
         return `
-          <div class="card-credit-box ${theme}">
+          <div class="card-credit-box ${theme} ${isSelected ? 'selected' : ''}" onclick="selectCard('${c.displayName}')" title="클릭하시면 이 카드의 결제 내역만 아래에 나타납니다">
             <div class="credit-box-top">
               <div>
                 <div class="credit-box-name">${c.name}</div>
-                <div style="font-size:12px;opacity:0.9;">명의자: <strong>${c.holder}</strong></div>
+                <div style="font-size:12px;opacity:0.95;margin-top:2px;">
+                  명의자: <strong>${c.holder}</strong>
+                  <span style="margin-left:6px;font-size:11px;background:rgba(255,255,255,0.2);padding:1px 6px;border-radius:4px;">
+                    매월 ${c.payDay}일 결제
+                  </span>
+                </div>
               </div>
-              <span class="badge" style="background:rgba(255,255,255,0.25);color:#fff;">결제예정</span>
+              <span class="badge" style="background:${isSelected ? '#f59e0b;color:#fff;font-weight:800;' : 'rgba(255,255,255,0.25);color:#fff;'}">
+                ${isSelected ? '⭐ 선택됨' : '선택하기'}
+              </span>
             </div>
-            <div class="credit-box-val">${formatKRW(c.total)}</div>
+
+            <!-- 청구기간 안내 -->
+            <div style="font-size:11px;opacity:0.85;margin-top:8px;">
+              청구기간: ${c.billingDesc}
+            </div>
+
+            <!-- 당월 / 다음월 결제예정금액 분리 박스 -->
+            <div class="credit-box-dues">
+              <div class="due-item">
+                <span class="due-label">💳 당월 결제예정</span>
+                <span class="due-val">${formatKRW(c.currentDue)}</span>
+              </div>
+              <div class="due-item" style="border-left:1px solid rgba(255,255,255,0.2);padding-left:10px;">
+                <span class="due-label">📆 다음월 결제예정</span>
+                <span class="due-val">${formatKRW(c.nextDue)}</span>
+              </div>
+            </div>
+
             <div class="credit-box-bot">
-              <span>총 ${c.count}건 결제</span>
-              <span>주요처: ${Array.from(c.platforms).slice(0, 2).join(', ')}</span>
+              <span>총 ${c.count}건 (누적 ${formatKRW(c.total)})</span>
+              <span>주요처: ${Array.from(c.platforms).slice(0, 2).join(', ') || '-'}</span>
             </div>
+
+            ${c.note ? `
+              <div class="credit-box-note" title="카드 특징/비고">
+                📝 ${c.note}
+              </div>
+            ` : ''}
           </div>
         `;
       }).join('');
     }
   }
 
+  // 4. 하단 결제 내역 테이블 렌더링
   if (tbody) {
-    const paidOrders = allOrders.filter(o => o.purchaseCost > 0);
-    if (paidOrders.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:20px;">결제 내역이 없습니다.</td></tr>';
+    let paidOrders = allOrders.filter(o => o.purchaseCost > 0);
+
+    // 선택된 카드 필터
+    if (AppState.selectedCardKey) {
+      paidOrders = paidOrders.filter(o => {
+        const k = o.cardHolder ? `${o.paymentCard} (${o.cardHolder})` : o.paymentCard;
+        return k === AppState.selectedCardKey;
+      });
+      const badge = document.getElementById('cardSelectedBadge');
+      const resetBtn = document.getElementById('btnResetCardFilter');
+      if (badge) {
+        badge.textContent = `[${AppState.selectedCardKey}] 보기 중`;
+        badge.style.display = 'inline-block';
+      }
+      if (resetBtn) resetBtn.style.display = 'inline-block';
     } else {
-      tbody.innerHTML = paidOrders.map(o => `
-        <tr>
-          <td>
-            <strong>${o.paymentCard}</strong>
-            <div style="font-size:11px;color:#4f46e5;font-weight:700;">명의자: ${o.cardHolder || '명의미지정'}</div>
-          </td>
-          <td>${o.sourcingPlatform}</td>
-          <td style="max-width:280px;text-overflow:ellipsis;overflow:hidden;white-space:nowrap;">${o.productName}</td>
-          <td>${formatOrderDateOnly(o.paymentDate || o.orderDate)}</td>
-          <td><strong class="text-danger">${formatKRW(o.purchaseCost)}</strong></td>
-          <td style="font-size:12px;">${o.sourcingOrderNo || '-'}</td>
-          <td>${o.supplierName || o.supplierBiz || '-'}</td>
-        </tr>
-      `).join('');
+      const badge = document.getElementById('cardSelectedBadge');
+      const resetBtn = document.getElementById('btnResetCardFilter');
+      if (badge) badge.style.display = 'none';
+      if (resetBtn) resetBtn.style.display = 'none';
+    }
+
+    // 당월/다음월 탭 필터
+    if (AppState.selectedCardTxTab !== 'ALL') {
+      paidOrders = paidOrders.filter(o => {
+        const k = o.cardHolder ? `${o.paymentCard} (${o.cardHolder})` : o.paymentCard;
+        const cSetting = cardMap[k];
+        const split = calcCardBillingSplit(o.paymentDate || o.orderDate, cSetting);
+        return split === AppState.selectedCardTxTab;
+      });
+    }
+
+    if (paidOrders.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:30px;color:#94a3b8;">해당 조건의 결제 내역이 없습니다.</td></tr>';
+    } else {
+      tbody.innerHTML = paidOrders.map(o => {
+        const k = o.cardHolder ? `${o.paymentCard} (${o.cardHolder})` : o.paymentCard;
+        const cSetting = cardMap[k];
+        const split = calcCardBillingSplit(o.paymentDate || o.orderDate, cSetting);
+
+        return `
+          <tr>
+            <td>
+              <strong>${o.paymentCard}</strong>
+              <div style="font-size:11px;color:#4f46e5;font-weight:700;">명의자: ${o.cardHolder || '명의미지정'}</div>
+            </td>
+            <td style="text-align:center;">
+              <span class="badge" style="background:${split === 'CURRENT' ? '#ecfdf5;color:#059669;border:1px solid #a7f3d0;' : '#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;'}font-weight:700;font-size:11px;">
+                ${split === 'CURRENT' ? '🟢 당월 청구' : '🔵 다음월 청구'}
+              </span>
+            </td>
+            <td>${o.sourcingPlatform || '-'}</td>
+            <td style="max-width:260px;text-overflow:ellipsis;overflow:hidden;white-space:nowrap;" title="${o.productName}">${o.productName}</td>
+            <td>${formatOrderDateOnly(o.paymentDate || o.orderDate)}</td>
+            <td style="text-align:right;"><strong class="text-danger">${formatKRW(o.purchaseCost)}</strong></td>
+            <td style="font-size:12px;">${o.sourcingOrderNo || '-'}</td>
+            <td>${o.supplierName || o.supplierBiz || '-'}</td>
+          </tr>
+        `;
+      }).join('');
     }
   }
+
+  // 상단 뱃지 갱신
+  const countBadge = document.getElementById('cardCountBadge');
+  if (countBadge) {
+    countBadge.textContent = `${cards.length}개 카드사`;
+  }
+}
+
+/**
+ * 카드를 클릭하여 선택/해제 토글
+ */
+function selectCard(cardKey) {
+  if (AppState.selectedCardKey === cardKey) {
+    AppState.selectedCardKey = null;
+  } else {
+    AppState.selectedCardKey = cardKey;
+  }
+  renderCardsView();
+}
+
+function resetCardSelection() {
+  AppState.selectedCardKey = null;
+  renderCardsView();
+}
+
+/**
+ * 결제내역 탭 전환 (전체 / 당월결제 / 다음월결제)
+ */
+function setCardTxTab(tab) {
+  AppState.selectedCardTxTab = tab;
+  const btnAll = document.getElementById('btnCardTxAll');
+  const btnCur = document.getElementById('btnCardTxCurrent');
+  const btnNext = document.getElementById('btnCardTxNext');
+  if (btnAll && btnCur && btnNext) {
+    btnAll.classList.toggle('active', tab === 'ALL');
+    btnCur.classList.toggle('active', tab === 'CURRENT');
+    btnNext.classList.toggle('active', tab === 'NEXT');
+  }
+  renderCardsView();
+}
+
+/**
+ * 카드사 정보 관리 모달 핸들러
+ */
+function openCardSettingsModal() {
+  resetCardForm();
+  renderCardSettingsList();
+  const overlay = document.getElementById('cardSettingsModalOverlay');
+  if (overlay) overlay.style.display = 'flex';
+  if (window.feather) feather.replace();
+}
+
+function closeCardSettingsModal() {
+  const overlay = document.getElementById('cardSettingsModalOverlay');
+  if (overlay) overlay.style.display = 'none';
+}
+
+function resetCardForm() {
+  const idEl = document.getElementById('formCardId');
+  const nameEl = document.getElementById('formCardName');
+  const holderEl = document.getElementById('formCardHolder');
+  const payDayEl = document.getElementById('formCardPayDay');
+  const descEl = document.getElementById('formCardBillingDesc');
+  const themeEl = document.getElementById('formCardTheme');
+  const noteEl = document.getElementById('formCardNote');
+  const titleEl = document.getElementById('cardFormTitle');
+
+  if (idEl) idEl.value = '';
+  if (nameEl) nameEl.value = '';
+  if (holderEl) holderEl.value = '';
+  if (payDayEl) payDayEl.value = '14';
+  if (descEl) descEl.value = '전월 1일 ~ 전월 말일';
+  if (themeEl) themeEl.value = 'theme-samsung';
+  if (noteEl) noteEl.value = '';
+  if (titleEl) titleEl.textContent = '+ 카드사 기본정보 신규 등록';
+}
+
+function autoFillBillingRange() {
+  const payDay = parseInt(document.getElementById('formCardPayDay').value, 10);
+  const descEl = document.getElementById('formCardBillingDesc');
+  if (!descEl) return;
+  if (payDay === 14) {
+    descEl.value = '전월 1일 ~ 전월 말일';
+  } else if (payDay === 25) {
+    descEl.value = '전전월 14일 ~ 전월 13일';
+  } else if (payDay === 10) {
+    descEl.value = '전전월 28일 ~ 전월 27일';
+  } else if (payDay === 1) {
+    descEl.value = '전전월 17일 ~ 전월 16일';
+  } else {
+    descEl.value = `전월 ${payDay - 13}일 ~ 당월 ${payDay - 14}일`;
+  }
+}
+
+function setPresetBilling(preset) {
+  const descEl = document.getElementById('formCardBillingDesc');
+  if (!descEl) return;
+  if (preset === 'MONTH_PREV') {
+    descEl.value = '전월 1일 ~ 전월 말일';
+  } else if (preset === 'CUSTOM_25') {
+    descEl.value = '전전월 14일 ~ 전월 13일';
+  }
+}
+
+function saveCardSetting() {
+  const id = document.getElementById('formCardId').value;
+  const name = document.getElementById('formCardName').value.trim();
+  const holder = document.getElementById('formCardHolder').value.trim();
+  const payDay = parseInt(document.getElementById('formCardPayDay').value, 10) || 14;
+  const billingDesc = document.getElementById('formCardBillingDesc').value.trim();
+  const theme = document.getElementById('formCardTheme').value;
+  const note = document.getElementById('formCardNote').value.trim();
+
+  if (!name || !holder || !billingDesc) {
+    alert('카드사명, 카드명의자, 청구기간을 모두 입력해주세요, 리사님!');
+    return;
+  }
+
+  if (id) {
+    const idx = AppState.cardSettings.findIndex(s => s.id === id);
+    if (idx !== -1) {
+      AppState.cardSettings[idx] = { id, name, holder, payDay, billingDesc, theme, note };
+    }
+  } else {
+    const newId = 'card_' + Date.now();
+    AppState.cardSettings.push({ id: newId, name, holder, payDay, billingDesc, theme, note });
+  }
+
+  saveStateToStorage();
+  resetCardForm();
+  renderCardSettingsList();
+  renderCardsView();
+  alert('카드사 기본정보가 안전하게 저장되었습니다!');
+}
+
+function editCardSetting(id) {
+  const s = AppState.cardSettings.find(item => item.id === id);
+  if (!s) return;
+
+  document.getElementById('formCardId').value = s.id;
+  document.getElementById('formCardName').value = s.name;
+  document.getElementById('formCardHolder').value = s.holder;
+  document.getElementById('formCardPayDay').value = s.payDay || 14;
+  document.getElementById('formCardBillingDesc').value = s.billingDesc || '전월 1일 ~ 전월 말일';
+  document.getElementById('formCardTheme').value = s.theme || 'theme-samsung';
+  document.getElementById('formCardNote').value = s.note || '';
+
+  const titleEl = document.getElementById('cardFormTitle');
+  if (titleEl) titleEl.textContent = `✏️ [${s.name} (${s.holder})] 정보 수정`;
+}
+
+function deleteCardSetting(id) {
+  if (!confirm('이 카드사 설정을 삭제하시겠습니까?')) return;
+  AppState.cardSettings = AppState.cardSettings.filter(s => s.id !== id);
+  saveStateToStorage();
+  resetCardForm();
+  renderCardSettingsList();
+  renderCardsView();
+}
+
+function renderCardSettingsList() {
+  const tbody = document.getElementById('cardSettingsTableBody');
+  if (!tbody) return;
+
+  if (AppState.cardSettings.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:20px;color:#94a3b8;">등록된 카드사 정보가 없습니다.</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = AppState.cardSettings.map(s => `
+    <tr>
+      <td><strong>${s.name}</strong></td>
+      <td><span class="badge" style="background:#eef2ff;color:#4f46e5;">${s.holder}</span></td>
+      <td>매월 ${s.payDay}일</td>
+      <td style="font-size:12px;">${s.billingDesc}</td>
+      <td style="font-size:12px;color:#475569;">${s.note || '-'}</td>
+      <td style="text-align:center;">
+        <button class="btn btn-sm btn-secondary" onclick="editCardSetting('${s.id}')" style="padding:2px 6px;font-size:11px;margin-right:4px;">✏️수정</button>
+        <button class="btn btn-sm btn-secondary" onclick="deleteCardSetting('${s.id}')" style="padding:2px 6px;font-size:11px;color:#dc2626;">🗑️삭제</button>
+      </td>
+    </tr>
+  `).join('');
 }
 
 /**
@@ -1292,10 +1947,15 @@ function renderSettlementView() {
 
   filteredBanks.forEach(b => { bankTotal += b.balance; });
 
-  document.getElementById('settleTotalDue').textContent = formatKRW(totalDue);
-  document.getElementById('settleDeposited').textContent = formatKRW(totalDeposited);
-  document.getElementById('settleRemainingReceivable').textContent = formatKRW(totalReceivable);
-  document.getElementById('bankTotalBalance').textContent = formatKRW(bankTotal);
+  const elDue = document.getElementById('settleTotalDue');
+  const elDep = document.getElementById('settleDeposited');
+  const elRec = document.getElementById('settleRemainingReceivable');
+  const elBal = document.getElementById('bankTotalBalance');
+
+  if (elDue) elDue.textContent = formatKRW(totalDue);
+  if (elDep) elDep.textContent = formatKRW(totalDeposited);
+  if (elRec) elRec.textContent = formatKRW(totalReceivable);
+  if (elBal) elBal.textContent = formatKRW(bankTotal);
 
   const tbody = document.getElementById('marketReceivablesTableBody');
   if (tbody) {
@@ -1314,18 +1974,461 @@ function renderSettlementView() {
     `).join('');
   }
 
+  // 등록 통장 카드 목록 렌더링
   const bankList = document.getElementById('bankAccountsList');
   if (bankList) {
-    bankList.innerHTML = filteredBanks.map(b => `
-      <div class="bank-account-card">
-        <div>
-          <div class="bank-name">${b.name} <span class="badge" style="background:#eef2ff;color:#4f46e5">${b.biz}</span></div>
-          <div class="bank-num">${b.accountNum}</div>
+    if (filteredBanks.length === 0) {
+      bankList.innerHTML = '<div style="padding:24px;text-align:center;color:#94a3b8;">등록된 통장이 없습니다. [+ 통장 등록] 버튼으로 추가해보세요!</div>';
+    } else {
+      bankList.innerHTML = filteredBanks.map(b => `
+        <div class="bank-account-card" style="display:flex;justify-content:space-between;align-items:center;padding:14px 16px;background:#fff;border:1px solid #e2e8f0;border-radius:12px;box-shadow:0 1px 3px rgba(0,0,0,0.04);margin-bottom:10px;">
+          <div>
+            <div class="bank-name" style="font-weight:700;font-size:14px;color:#1e293b;display:flex;align-items:center;gap:6px;">
+              <span>🏦 ${b.bankName || b.name}</span>
+              <span class="badge" style="background:#eef2ff;color:#4f46e5;font-size:11px;">${b.biz}</span>
+            </div>
+            <div style="font-size:12.5px;color:#475569;margin-top:3px;font-weight:600;">${b.accountName || b.name}</div>
+            <div class="bank-num" style="font-size:12px;color:#64748b;margin-top:2px;font-family:monospace;">${b.accountNum}</div>
+            ${b.note ? `<div style="font-size:11px;color:#0d9488;margin-top:4px;">📝 ${b.note}</div>` : ''}
+          </div>
+          <div style="text-align:right;">
+            <div class="bank-bal" style="font-size:16px;font-weight:800;color:#065f46;">${formatKRW(b.balance)}</div>
+            <div style="margin-top:6px;display:flex;gap:4px;justify-content:flex-end;">
+              <button class="btn btn-sm btn-secondary" onclick="openBankAccountModal(${b.id})" style="font-size:11px;padding:3px 8px;">✏️ 수정</button>
+              <button class="btn btn-sm btn-secondary" onclick="deleteBankAccount(${b.id})" style="font-size:11px;padding:3px 8px;color:#dc2626;">🗑️ 삭제</button>
+            </div>
+          </div>
         </div>
-        <div class="bank-bal">${formatKRW(b.balance)}</div>
-      </div>
+      `).join('');
+    }
+  }
+
+  // 필터 통장 셀렉트박스 옵션 동기화
+  const filterAcc = document.getElementById('bankTxFilterAccount');
+  if (filterAcc) {
+    const curVal = filterAcc.value;
+    filterAcc.innerHTML = '<option value="ALL">모든 등록 통장</option>' + 
+      AppState.bankAccounts.map(b => `<option value="${b.id}">${b.bankName || ''} - ${b.accountName || b.name} (${b.accountNum})</option>`).join('');
+    if (curVal) filterAcc.value = curVal;
+  }
+
+  // 통장 입출금 거래내역 장부 렌더링 동기화
+  renderBankTxTable();
+  if (window.feather) feather.replace();
+}
+
+/**
+ * 통장 등록 / 수정 모달 핸들러
+ */
+function openBankAccountModal(id) {
+  const idEl = document.getElementById('formBankId');
+  const nameEl = document.getElementById('formBankName');
+  const bizEl = document.getElementById('formBankBiz');
+  const accNameEl = document.getElementById('formBankAccName');
+  const accNumEl = document.getElementById('formBankAccNum');
+  const balEl = document.getElementById('formBankBalance');
+  const noteEl = document.getElementById('formBankNote');
+  const titleEl = document.getElementById('bankModalTitle');
+
+  if (id && id !== -1) {
+    const b = AppState.bankAccounts.find(item => item.id == id);
+    if (b) {
+      if (idEl) idEl.value = b.id;
+      if (nameEl) nameEl.value = b.bankName || '기업은행';
+      if (bizEl) bizEl.value = b.biz || '사업자A';
+      if (accNameEl) accNameEl.value = b.accountName || b.name || '';
+      if (accNumEl) accNumEl.value = b.accountNum || '';
+      if (balEl) balEl.value = b.balance || 0;
+      if (noteEl) noteEl.value = b.note || '';
+      if (titleEl) titleEl.textContent = `✏️ [${b.bankName || b.name}] 계좌 정보 수정`;
+    }
+  } else {
+    if (idEl) idEl.value = '';
+    if (nameEl) nameEl.value = '기업은행';
+    if (bizEl) bizEl.value = AppState.currentBizFilter === 'ALL' ? '사업자A' : AppState.currentBizFilter;
+    if (accNameEl) accNameEl.value = '';
+    if (accNumEl) accNumEl.value = '';
+    if (balEl) balEl.value = '';
+    if (noteEl) noteEl.value = '';
+    if (titleEl) titleEl.textContent = '🏦 통장 기본정보 등록';
+  }
+
+  const overlay = document.getElementById('bankAccountModalOverlay');
+  if (overlay) overlay.style.display = 'flex';
+  if (window.feather) feather.replace();
+}
+
+function closeBankAccountModal() {
+  const overlay = document.getElementById('bankAccountModalOverlay');
+  if (overlay) overlay.style.display = 'none';
+}
+
+function saveBankAccount() {
+  const id = document.getElementById('formBankId').value;
+  const bankName = document.getElementById('formBankName').value;
+  const biz = document.getElementById('formBankBiz').value;
+  const accountName = document.getElementById('formBankAccName').value.trim();
+  const accountNum = document.getElementById('formBankAccNum').value.trim();
+  const balance = parseFloat(document.getElementById('formBankBalance').value) || 0;
+  const note = document.getElementById('formBankNote').value.trim();
+
+  if (!accountName || !accountNum) {
+    alert('계좌명과 계좌번호를 모두 입력해주세요, 리사님!');
+    return;
+  }
+
+  const displayName = `${bankName} (${accountName})`;
+
+  if (id) {
+    const idx = AppState.bankAccounts.findIndex(b => b.id == id);
+    if (idx !== -1) {
+      AppState.bankAccounts[idx] = {
+        ...AppState.bankAccounts[idx],
+        bankName,
+        name: displayName,
+        accountName,
+        accountNum,
+        balance,
+        biz,
+        note
+      };
+    }
+  } else {
+    const newBank = {
+      id: Date.now(),
+      bankName,
+      name: displayName,
+      accountName,
+      accountNum,
+      balance,
+      biz,
+      note
+    };
+    AppState.bankAccounts.push(newBank);
+  }
+
+  saveStateToStorage();
+  closeBankAccountModal();
+  renderSettlementView();
+  calculatePL();
+  alert('통장 기본정보가 안전하게 저장되었습니다!');
+}
+
+function deleteBankAccount(id) {
+  if (!confirm('이 통장 정보를 삭제하시겠습니까? 관련 거래내역은 그대로 유지됩니다.')) return;
+  AppState.bankAccounts = AppState.bankAccounts.filter(b => b.id != id);
+  saveStateToStorage();
+  renderSettlementView();
+  calculatePL();
+}
+
+/**
+ * 통장 입출금 거래내역 장부 렌더링
+ */
+function renderBankTxTable() {
+  const tbody = document.getElementById('bankTxTableBody');
+  const countBadge = document.getElementById('bankTxCountBadge');
+  if (!tbody) return;
+
+  const filterAcc = document.getElementById('bankTxFilterAccount');
+  const filterType = document.getElementById('bankTxFilterType');
+  const selectedAccId = filterAcc ? filterAcc.value : 'ALL';
+  const selectedType = filterType ? filterType.value : 'ALL';
+
+  let list = [...AppState.bankTransactions];
+
+  if (selectedAccId !== 'ALL') {
+    list = list.filter(tx => String(tx.accountId) === String(selectedAccId));
+  }
+
+  if (selectedType !== 'ALL') {
+    list = list.filter(tx => tx.type === selectedType);
+  }
+
+  // 최신 거래일시 순 정렬
+  list.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+
+  if (countBadge) {
+    countBadge.textContent = `${list.length}건`;
+  }
+
+  if (list.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:30px;color:#94a3b8;">등록된 입출금 거래내역이 없습니다. [✍️ 거래내역 직접입력] 또는 [📥 통장 엑셀 업로드]로 내역을 등록해보세요!</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = list.map(tx => {
+    const isDeposit = (tx.type === '입금');
+    return `
+      <tr>
+        <td style="font-size:12px;color:#334155;font-weight:600;">${tx.date || '-'}</td>
+        <td>
+          <strong>${tx.bankName || ''} ${tx.accountName || ''}</strong>
+          <div style="font-size:11px;color:#64748b;font-family:monospace;">${tx.accountNum || ''}</div>
+        </td>
+        <td style="text-align:center;">
+          <span class="badge" style="background:${isDeposit ? '#ecfdf5' : '#fef2f2'};color:${isDeposit ? '#059669' : '#dc2626'};font-weight:700;">
+            ${isDeposit ? '🟢 입금' : '🔴 출금'}
+          </span>
+        </td>
+        <td style="text-align:right;">
+          <strong style="color:${isDeposit ? '#059669' : '#dc2626'};font-size:13.5px;">
+            ${isDeposit ? '+' : '-'}${formatKRW(tx.amount || 0)}
+          </strong>
+        </td>
+        <td style="text-align:right;color:#1e40af;font-weight:700;">
+          ${tx.balanceAfter ? formatKRW(tx.balanceAfter) : '-'}
+        </td>
+        <td style="max-width:240px;text-overflow:ellipsis;overflow:hidden;white-space:nowrap;" title="${tx.summary || ''}">
+          ${tx.summary || '-'}
+        </td>
+        <td style="font-size:12px;color:#64748b;">${tx.note || '-'}</td>
+        <td style="text-align:center;">
+          <button class="btn btn-sm btn-secondary" onclick="deleteBankTx(${tx.id})" style="font-size:11px;padding:2px 6px;color:#dc2626;">🗑️</button>
+        </td>
+      </tr>
+    `;
+  }).join('');
+}
+
+function openBankTxModal() {
+  const selectAcc = document.getElementById('formTxBankId');
+  if (selectAcc) {
+    if (AppState.bankAccounts.length === 0) {
+      alert('먼저 통장 기본정보를 최소 1개 이상 등록해주세요, 리사님!');
+      openBankAccountModal(-1);
+      return;
+    }
+    selectAcc.innerHTML = AppState.bankAccounts.map(b => `
+      <option value="${b.id}">${b.bankName || ''} - ${b.accountName || b.name} (${b.accountNum})</option>
     `).join('');
   }
+
+  const dateEl = document.getElementById('formTxDate');
+  if (dateEl) {
+    const now = new Date();
+    dateEl.value = now.toISOString().slice(0, 10);
+  }
+
+  document.getElementById('formTxType').value = '입금';
+  document.getElementById('formTxAmount').value = '';
+  document.getElementById('formTxSummary').value = '';
+  document.getElementById('formTxNote').value = '';
+
+  const overlay = document.getElementById('bankTxModalOverlay');
+  if (overlay) overlay.style.display = 'flex';
+  if (window.feather) feather.replace();
+}
+
+function closeBankTxModal() {
+  const overlay = document.getElementById('bankTxModalOverlay');
+  if (overlay) overlay.style.display = 'none';
+}
+
+function saveBankTx() {
+  const bankId = document.getElementById('formTxBankId').value;
+  const dateStr = document.getElementById('formTxDate').value.trim();
+  const type = document.getElementById('formTxType').value;
+  const amount = parseFloat(document.getElementById('formTxAmount').value) || 0;
+  const summary = document.getElementById('formTxSummary').value.trim();
+  const note = document.getElementById('formTxNote').value.trim();
+
+  if (!amount || amount <= 0 || !summary) {
+    alert('거래금액과 거래내용(적요)을 입력해주세요, 리사님!');
+    return;
+  }
+
+  const targetBank = AppState.bankAccounts.find(b => b.id == bankId);
+  if (!targetBank) {
+    alert('대상 통장을 찾을 수 없습니다.');
+    return;
+  }
+
+  // 통장 잔액 반영
+  if (type === '입금') {
+    targetBank.balance += amount;
+  } else {
+    targetBank.balance -= amount;
+  }
+
+  const newTx = {
+    id: Date.now(),
+    accountId: targetBank.id,
+    bankName: targetBank.bankName || targetBank.name,
+    accountName: targetBank.accountName || targetBank.name,
+    accountNum: targetBank.accountNum,
+    date: dateStr || new Date().toISOString().slice(0, 10),
+    type: type,
+    amount: amount,
+    balanceAfter: targetBank.balance,
+    summary: summary,
+    note: note
+  };
+
+  AppState.bankTransactions.unshift(newTx);
+  saveStateToStorage();
+  closeBankTxModal();
+  renderSettlementView();
+  calculatePL();
+  alert(`통장 거래내역(${type} ${formatKRW(amount)})이 등록되었습니다!`);
+}
+
+function deleteBankTx(id) {
+  if (!confirm('이 거래내역을 장부에서 삭제하시겠습니까? (통장 잔액은 변경되지 않습니다)')) return;
+  AppState.bankTransactions = AppState.bankTransactions.filter(tx => tx.id != id);
+  saveStateToStorage();
+  renderBankTxTable();
+}
+
+/**
+ * 통장 거래내역 엑셀 업로드 핸들러
+ */
+function openBankUploadModal() {
+  if (AppState.bankAccounts.length === 0) {
+    alert('먼저 통장 기본정보를 최소 1개 이상 등록해주세요, 리사님!');
+    openBankAccountModal(-1);
+    return;
+  }
+
+  const selectAcc = document.getElementById('formUploadBankId');
+  if (selectAcc) {
+    selectAcc.innerHTML = AppState.bankAccounts.map(b => `
+      <option value="${b.id}">${b.bankName || ''} - ${b.accountName || b.name} (${b.accountNum})</option>
+    `).join('');
+  }
+
+  const fileInput = document.getElementById('bankFileInput');
+  if (fileInput) fileInput.value = '';
+
+  const overlay = document.getElementById('bankUploadModalOverlay');
+  if (overlay) overlay.style.display = 'flex';
+  if (window.feather) feather.replace();
+}
+
+function closeBankUploadModal() {
+  const overlay = document.getElementById('bankUploadModalOverlay');
+  if (overlay) overlay.style.display = 'none';
+}
+
+function handleBankFileSelected(event) {
+  const file = event.target.files && event.target.files[0];
+  if (!file) return;
+
+  const bankId = document.getElementById('formUploadBankId').value;
+  const targetBank = AppState.bankAccounts.find(b => b.id == bankId);
+  if (!targetBank) {
+    alert('대상 통장을 먼저 선택해주세요.');
+    return;
+  }
+
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      const data = new Uint8Array(e.target.result);
+      const workbook = XLSX.read(data, { type: 'array' });
+      const firstSheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[firstSheetName];
+      const rows = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+
+      if (!rows || rows.length < 2) {
+        alert('엑셀 파일에 유효한 데이터가 없습니다.');
+        return;
+      }
+
+      // 헤더 열 위치 탐색
+      let headerRowIdx = -1;
+      let dateCol = -1;
+      let inCol = -1;
+      let outCol = -1;
+      let sumCol = -1;
+      let balCol = -1;
+
+      for (let r = 0; r < Math.min(rows.length, 15); r++) {
+        const row = rows[r];
+        if (!Array.isArray(row)) continue;
+        for (let c = 0; c < row.length; c++) {
+          const val = String(row[c] || '').trim();
+          if (val.includes('일자') || val.includes('거래일') || val.includes('날짜') || val.includes('거래일시')) dateCol = c;
+          if (val.includes('입금') || val.includes('맡기신금액')) inCol = c;
+          if (val.includes('출금') || val.includes('찾으신금액')) outCol = c;
+          if (val.includes('적요') || val.includes('내용') || val.includes('거래내용') || val.includes('보낸분') || val.includes('기재내용')) sumCol = c;
+          if (val.includes('잔액') || val.includes('현재잔액') || val.includes('거래후잔액')) balCol = c;
+        }
+        if (dateCol !== -1 && (inCol !== -1 || outCol !== -1 || sumCol !== -1)) {
+          headerRowIdx = r;
+          break;
+        }
+      }
+
+      if (headerRowIdx === -1) {
+        alert('은행 엑셀의 열(거래일, 입금액, 출금액, 적요 등)을 자동으로 감지하지 못했습니다. 표준 통장 엑셀 양식인지 확인해주세요!');
+        return;
+      }
+
+      let importedCount = 0;
+      let latestBalance = null;
+
+      for (let r = headerRowIdx + 1; r < rows.length; r++) {
+        const row = rows[r];
+        if (!row || row.length === 0) continue;
+
+        let dateVal = (dateCol !== -1) ? String(row[dateCol] || '').trim() : '';
+        if (!dateVal) continue;
+
+        let inAmt = 0;
+        if (inCol !== -1) {
+          inAmt = parseFloat(String(row[inCol] || '').replace(/[^0-9.-]/g, '')) || 0;
+        }
+
+        let outAmt = 0;
+        if (outCol !== -1) {
+          outAmt = parseFloat(String(row[outCol] || '').replace(/[^0-9.-]/g, '')) || 0;
+        }
+
+        if (inAmt === 0 && outAmt === 0) continue;
+
+        let summaryVal = (sumCol !== -1) ? String(row[sumCol] || '').trim() : '통장 거래';
+        let balVal = (balCol !== -1) ? parseFloat(String(row[balCol] || '').replace(/[^0-9.-]/g, '')) || 0 : 0;
+
+        if (balVal > 0 && latestBalance === null) {
+          latestBalance = balVal;
+        }
+
+        const type = inAmt > 0 ? '입금' : '출금';
+        const amount = inAmt > 0 ? inAmt : outAmt;
+
+        AppState.bankTransactions.unshift({
+          id: Date.now() + Math.floor(Math.random() * 10000),
+          accountId: targetBank.id,
+          bankName: targetBank.bankName || targetBank.name,
+          accountName: targetBank.accountName || targetBank.name,
+          accountNum: targetBank.accountNum,
+          date: dateVal,
+          type: type,
+          amount: amount,
+          balanceAfter: balVal || 0,
+          summary: summaryVal,
+          note: '엑셀 일괄 등록'
+        });
+
+        importedCount++;
+      }
+
+      if (latestBalance !== null && latestBalance > 0) {
+        targetBank.balance = latestBalance;
+      }
+
+      saveStateToStorage();
+      closeBankUploadModal();
+      renderSettlementView();
+      calculatePL();
+      alert(`🎉 ${targetBank.accountName || targetBank.bankName} 통장에 총 ${importedCount}건의 거래내역이 성공적으로 등록되었습니다, 리사님!`);
+    } catch (err) {
+      console.error(err);
+      alert('엑셀 파일을 읽는 도중 오류가 발생했습니다: ' + err.message);
+    }
+  };
+  reader.readAsArrayBuffer(file);
 }
 
 /**
@@ -1409,7 +2512,7 @@ function renderInventoryView() {
 }
 
 /**
- * 6. 손익계산서 & 순자산 (사입 재고 가치 연동)
+ * 6. 손익계산서 & 순자산 (판관비 항목 연동 및 순자산 계산 공식 완벽 반영)
  */
 function calculatePL() {
   const countableOrders = getCountableOrders();
@@ -1431,26 +2534,69 @@ function calculatePL() {
   const marketFees = grossSales - netSales;
   const grossProfit = netSales - purchaseCost;
 
+  // 1. 등록된 세부 판관비 항목 합산 및 손익계산서 동적 주입
+  let customExpTotal = 0;
+  const filteredExpenses = AppState.customExpenses.filter(exp => {
+    return (AppState.currentBizFilter === 'ALL' || exp.biz === 'ALL' || exp.biz === AppState.currentBizFilter);
+  });
+
+  const placeholder = document.getElementById('plDynamicExpensePlaceholder');
+  if (placeholder) {
+    if (filteredExpenses.length === 0) {
+      placeholder.style.display = 'none';
+      placeholder.innerHTML = '';
+    } else {
+      placeholder.style.display = 'table-row-group';
+      placeholder.innerHTML = filteredExpenses.map(exp => {
+        customExpTotal += (exp.amount || 0);
+        return `
+          <tr class="pl-dynamic-exp-row" style="background:#fffaf0;">
+            <td class="pl-indent">
+              <span class="badge" style="background:#fee2e2;color:#991b1b;font-size:10.5px;margin-right:6px;">${exp.category}</span>
+              ${exp.title}
+              <span style="font-size:11px;color:#64748b;margin-left:4px;">(${exp.biz})</span>
+            </td>
+            <td style="font-size:11px;color:#94a3b8;">${exp.note || ''}</td>
+            <td class="text-right text-danger">-${formatKRW(exp.amount || 0)}</td>
+          </tr>
+        `;
+      }).join('');
+    }
+  } else {
+    filteredExpenses.forEach(exp => { customExpTotal += (exp.amount || 0); });
+  }
+
   const otherExpenseInput = document.getElementById('inputOtherExpense');
   const otherExpense = otherExpenseInput ? parseFloat(otherExpenseInput.value) || 0 : 50000;
   const taxReserve = Math.max(0, Math.round(grossProfit * 0.1));
-  const totalExpense = otherExpense + taxReserve;
+  const totalExpense = customExpTotal + otherExpense + taxReserve;
   const finalNetProfit = grossProfit - totalExpense;
 
-  document.getElementById('plSalesTotal').textContent = formatKRW(grossSales);
-  document.getElementById('plGrossSales').textContent = formatKRW(grossSales);
-  document.getElementById('plMarketFees').textContent = '-' + formatKRW(marketFees);
-  document.getElementById('plNetSales').textContent = formatKRW(netSales);
+  const elST = document.getElementById('plSalesTotal');
+  const elGS = document.getElementById('plGrossSales');
+  const elMF = document.getElementById('plMarketFees');
+  const elNS = document.getElementById('plNetSales');
+  const elCT = document.getElementById('plCogsTotal');
+  const elPC = document.getElementById('plPurchaseCost');
+  const elGP = document.getElementById('plGrossProfit');
+  const elET = document.getElementById('plExpenseTotal');
+  const elOE = document.getElementById('plOtherExpense');
+  const elTR = document.getElementById('plTaxReserve');
+  const elFP = document.getElementById('plFinalNetProfit');
 
-  document.getElementById('plCogsTotal').textContent = '-' + formatKRW(purchaseCost);
-  document.getElementById('plPurchaseCost').textContent = '-' + formatKRW(purchaseCost);
-  document.getElementById('plGrossProfit').textContent = formatKRW(grossProfit);
+  if (elST) elST.textContent = formatKRW(grossSales);
+  if (elGS) elGS.textContent = formatKRW(grossSales);
+  if (elMF) elMF.textContent = '-' + formatKRW(marketFees);
+  if (elNS) elNS.textContent = formatKRW(netSales);
+  if (elCT) elCT.textContent = '-' + formatKRW(purchaseCost);
+  if (elPC) elPC.textContent = '-' + formatKRW(purchaseCost);
+  if (elGP) elGP.textContent = formatKRW(grossProfit);
+  if (elET) elET.textContent = '-' + formatKRW(totalExpense);
+  if (elOE) elOE.textContent = '-' + formatKRW(otherExpense);
+  if (elTR) elTR.textContent = '-' + formatKRW(taxReserve);
+  if (elFP) elFP.textContent = formatKRW(finalNetProfit);
 
-  document.getElementById('plExpenseTotal').textContent = '-' + formatKRW(totalExpense);
-  document.getElementById('plOtherExpense').textContent = '-' + formatKRW(otherExpense);
-  document.getElementById('plTaxReserve').textContent = '-' + formatKRW(taxReserve);
-  document.getElementById('plFinalNetProfit').textContent = formatKRW(finalNetProfit);
-
+  // 2. 순자산 공식 계산: (통장 잔고) + (정산 미수금) + (창고 재고가치) + (추가 자산) - (나갈 카드값) - (등록 부채)
   let bankTotal = 0;
   const filteredBanks = AppState.currentBizFilter === 'ALL'
     ? AppState.bankAccounts
@@ -1474,7 +2620,6 @@ function calculatePL() {
   const buyStockMap = {};
   allOrders.forEach(o => {
     if (o.sourcingType === '사입') {
-      // ⭐ 리사님 규칙: 사입 재고의 단가는 소싱기준가와 동일
       const unitCost = (o.sourcingStandardPrice > 0) 
         ? o.sourcingStandardPrice 
         : (o.inventoryUnitCost || o.purchasePrice || o.purchaseCost || 0);
@@ -1495,14 +2640,233 @@ function calculatePL() {
     totalStockValue += (cur * s.cost);
   });
 
-  const totalCardDue = purchaseCost;
-  const netAssetValue = bankTotal + remainingReceivable + totalStockValue - totalCardDue;
+  // 3. 등록된 추가 자산 및 부채 합산
+  let extraAssets = 0;
+  let extraDebts = 0;
+  const filteredAssets = AppState.customAssets.filter(item => {
+    return (AppState.currentBizFilter === 'ALL' || item.biz === 'ALL' || item.biz === AppState.currentBizFilter);
+  });
 
-  document.getElementById('totalNetAssetValue').textContent = formatKRW(netAssetValue);
-  document.getElementById('fBank').textContent = formatKRW(bankTotal);
-  document.getElementById('fReceivable').textContent = formatKRW(remainingReceivable);
-  document.getElementById('fStock').textContent = formatKRW(totalStockValue);
-  document.getElementById('fCard').textContent = formatKRW(totalCardDue);
+  filteredAssets.forEach(item => {
+    if (item.type === '자산') {
+      extraAssets += (item.amount || 0);
+    } else if (item.type === '부채') {
+      extraDebts += (item.amount || 0);
+    }
+  });
+
+  const totalCardDue = purchaseCost;
+  const netAssetValue = (bankTotal + remainingReceivable + totalStockValue + extraAssets) - (totalCardDue + extraDebts);
+
+  const elNAV = document.getElementById('totalNetAssetValue');
+  const elFBank = document.getElementById('fBank');
+  const elFRec = document.getElementById('fReceivable');
+  const elFStock = document.getElementById('fStock');
+  const elFCard = document.getElementById('fCard');
+  const elFExA = document.getElementById('fExtraAsset');
+  const elFExD = document.getElementById('fExtraDebt');
+
+  if (elNAV) elNAV.textContent = formatKRW(netAssetValue);
+  if (elFBank) elFBank.textContent = formatKRW(bankTotal);
+  if (elFRec) elFRec.textContent = formatKRW(remainingReceivable);
+  if (elFStock) elFStock.textContent = formatKRW(totalStockValue);
+  if (elFCard) elFCard.textContent = formatKRW(totalCardDue);
+  if (elFExA) elFExA.textContent = '+' + formatKRW(extraAssets);
+  if (elFExD) elFExD.textContent = '-' + formatKRW(extraDebts);
+}
+
+/**
+ * 💸 판관비(추가 비용) 모달 및 관리 핸들러
+ */
+function openCustomExpenseModal() {
+  document.getElementById('formExpTitle').value = '';
+  document.getElementById('formExpAmount').value = '';
+  document.getElementById('formExpNote').value = '';
+  renderCustomExpenses();
+
+  const overlay = document.getElementById('customExpenseModalOverlay');
+  if (overlay) overlay.style.display = 'flex';
+  if (window.feather) feather.replace();
+}
+
+function closeCustomExpenseModal() {
+  const overlay = document.getElementById('customExpenseModalOverlay');
+  if (overlay) overlay.style.display = 'none';
+}
+
+function saveCustomExpense() {
+  const category = document.getElementById('formExpCategory').value;
+  const title = document.getElementById('formExpTitle').value.trim();
+  const amount = parseFloat(document.getElementById('formExpAmount').value) || 0;
+  const biz = document.getElementById('formExpBiz').value;
+  const month = document.getElementById('formExpMonth').value;
+  const note = document.getElementById('formExpNote').value.trim();
+
+  if (!title || !amount || amount <= 0) {
+    alert('비용 항목명과 금액을 정확히 입력해주세요, 리사님!');
+    return;
+  }
+
+  const newExp = {
+    id: 'exp_' + Date.now(),
+    category,
+    title,
+    amount,
+    biz,
+    month,
+    note
+  };
+
+  AppState.customExpenses.unshift(newExp);
+  saveStateToStorage();
+  document.getElementById('formExpTitle').value = '';
+  document.getElementById('formExpAmount').value = '';
+  document.getElementById('formExpNote').value = '';
+  renderCustomExpenses();
+  calculatePL();
+  alert(`비용 항목[${title}]이(가) 등록되었습니다!`);
+}
+
+function deleteCustomExpense(id) {
+  if (!confirm('이 비용 항목을 삭제하시겠습니까?')) return;
+  AppState.customExpenses = AppState.customExpenses.filter(e => e.id !== id);
+  saveStateToStorage();
+  renderCustomExpenses();
+  calculatePL();
+}
+
+function renderCustomExpenses() {
+  const tbody = document.getElementById('customExpenseTableBody');
+  const badgeTotal = document.getElementById('customExpTotalBadge');
+  if (!tbody) return;
+
+  if (AppState.customExpenses.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:24px;color:#94a3b8;">등록된 판관비 항목이 없습니다.</td></tr>';
+    if (badgeTotal) badgeTotal.textContent = '0원';
+    return;
+  }
+
+  let total = 0;
+  tbody.innerHTML = AppState.customExpenses.map(exp => {
+    total += (exp.amount || 0);
+    return `
+      <tr>
+        <td><span class="badge" style="background:#fee2e2;color:#991b1b;font-weight:700;">${exp.category}</span></td>
+        <td><strong>${exp.title}</strong>${exp.note ? `<div style="font-size:11px;color:#64748b;">${exp.note}</div>` : ''}</td>
+        <td style="text-align:right;"><strong class="text-danger">${formatKRW(exp.amount)}</strong></td>
+        <td><span class="badge" style="background:#f1f5f9;color:#334155;">${exp.biz}</span></td>
+        <td style="font-size:12px;color:#64748b;">${exp.month || '-'}</td>
+        <td style="text-align:center;">
+          <button class="btn btn-sm btn-secondary" onclick="deleteCustomExpense('${exp.id}')" style="font-size:11px;padding:2px 6px;color:#dc2626;">🗑️</button>
+        </td>
+      </tr>
+    `;
+  }).join('');
+
+  if (badgeTotal) badgeTotal.textContent = formatKRW(total);
+}
+
+/**
+ * 💎 자산 & 부채 모달 및 관리 핸들러 (순자산 반영)
+ */
+function openCustomAssetModal() {
+  document.getElementById('formAssetTitle').value = '';
+  document.getElementById('formAssetAmount').value = '';
+  document.getElementById('formAssetNote').value = '';
+  renderCustomAssets();
+
+  const overlay = document.getElementById('customAssetModalOverlay');
+  if (overlay) overlay.style.display = 'flex';
+  if (window.feather) feather.replace();
+}
+
+function closeCustomAssetModal() {
+  const overlay = document.getElementById('customAssetModalOverlay');
+  if (overlay) overlay.style.display = 'none';
+}
+
+function saveCustomAsset() {
+  const type = document.getElementById('formAssetType').value;
+  const category = document.getElementById('formAssetCategory').value;
+  const biz = document.getElementById('formAssetBiz').value;
+  const title = document.getElementById('formAssetTitle').value.trim();
+  const amount = parseFloat(document.getElementById('formAssetAmount').value) || 0;
+  const note = document.getElementById('formAssetNote').value.trim();
+
+  if (!title || !amount || amount <= 0) {
+    alert('항목명과 금액을 정확히 입력해주세요, 리사님!');
+    return;
+  }
+
+  const newAsset = {
+    id: 'asset_' + Date.now(),
+    type,
+    category,
+    biz,
+    title,
+    amount,
+    note
+  };
+
+  AppState.customAssets.unshift(newAsset);
+  saveStateToStorage();
+  document.getElementById('formAssetTitle').value = '';
+  document.getElementById('formAssetAmount').value = '';
+  document.getElementById('formAssetNote').value = '';
+  renderCustomAssets();
+  calculatePL();
+  alert(`${type} 항목[${title}]이(가) 등록되었습니다!`);
+}
+
+function deleteCustomAsset(id) {
+  if (!confirm('이 항목을 삭제하시겠습니까?')) return;
+  AppState.customAssets = AppState.customAssets.filter(a => a.id !== id);
+  saveStateToStorage();
+  renderCustomAssets();
+  calculatePL();
+}
+
+function renderCustomAssets() {
+  const tbody = document.getElementById('customAssetTableBody');
+  const badgeAsset = document.getElementById('customAssetTotalBadge');
+  const badgeDebt = document.getElementById('customDebtTotalBadge');
+  if (!tbody) return;
+
+  if (AppState.customAssets.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:24px;color:#94a3b8;">등록된 추가 자산이나 부채가 없습니다.</td></tr>';
+    if (badgeAsset) badgeAsset.textContent = '+0원';
+    if (badgeDebt) badgeDebt.textContent = '-0원';
+    return;
+  }
+
+  let totalAsset = 0;
+  let totalDebt = 0;
+
+  tbody.innerHTML = AppState.customAssets.map(item => {
+    const isAsset = (item.type === '자산');
+    if (isAsset) totalAsset += (item.amount || 0);
+    else totalDebt += (item.amount || 0);
+
+    return `
+      <tr>
+        <td>
+          <span class="badge" style="background:${isAsset ? '#ecfdf5' : '#fef2f2'};color:${isAsset ? '#059669' : '#dc2626'};font-weight:700;">
+            ${isAsset ? '🟢 자산(+)' : '🔴 부채(-)'}
+          </span>
+        </td>
+        <td style="font-size:12px;color:#475569;">${item.category}</td>
+        <td><strong>${item.title}</strong>${item.note ? `<div style="font-size:11px;color:#64748b;">${item.note}</div>` : ''}</td>
+        <td style="text-align:right;"><strong style="color:${isAsset ? '#059669' : '#dc2626'};font-size:13.5px;">${isAsset ? '+' : '-'}${formatKRW(item.amount)}</strong></td>
+        <td><span class="badge" style="background:#f1f5f9;color:#334155;">${item.biz}</span></td>
+        <td style="text-align:center;">
+          <button class="btn btn-sm btn-secondary" onclick="deleteCustomAsset('${item.id}')" style="font-size:11px;padding:2px 6px;color:#dc2626;">🗑️</button>
+        </td>
+      </tr>
+    `;
+  }).join('');
+
+  if (badgeAsset) badgeAsset.textContent = '+' + formatKRW(totalAsset);
+  if (badgeDebt) badgeDebt.textContent = '-' + formatKRW(totalDebt);
 }
 
 /**
@@ -2207,5 +3571,48 @@ window.handleStandardPriceInput = handleStandardPriceInput;
 window.handleSaveOrder = handleSaveOrder;
 window.promptAddBankAccount = promptAddBankAccount;
 window.promptAddStock = promptAddStock;
+// 1. 주문장 일별/월별 집계
+window.switchOrdersViewTab = switchOrdersViewTab;
+window.renderOrdersDailyTable = renderOrdersDailyTable;
+window.renderOrdersMonthlyTable = renderOrdersMonthlyTable;
+window.filterOrdersByDate = filterOrdersByDate;
+
+// 2. 카드사 결제관리
+window.selectCard = selectCard;
+window.resetCardSelection = resetCardSelection;
+window.setCardTxTab = setCardTxTab;
+window.openCardSettingsModal = openCardSettingsModal;
+window.closeCardSettingsModal = closeCardSettingsModal;
+window.autoFillBillingRange = autoFillBillingRange;
+window.setPresetBilling = setPresetBilling;
+window.saveCardSetting = saveCardSetting;
+window.editCardSetting = editCardSetting;
+window.deleteCardSetting = deleteCardSetting;
+
+// 3. 통장 및 거래내역
+window.openBankAccountModal = openBankAccountModal;
+window.closeBankAccountModal = closeBankAccountModal;
+window.saveBankAccount = saveBankAccount;
+window.deleteBankAccount = deleteBankAccount;
+window.renderBankTxTable = renderBankTxTable;
+window.openBankTxModal = openBankTxModal;
+window.closeBankTxModal = closeBankTxModal;
+window.saveBankTx = saveBankTx;
+window.deleteBankTx = deleteBankTx;
+window.openBankUploadModal = openBankUploadModal;
+window.closeBankUploadModal = closeBankUploadModal;
+window.handleBankFileSelected = handleBankFileSelected;
+
+// 4. 판관비 & 순자산
+window.openCustomExpenseModal = openCustomExpenseModal;
+window.closeCustomExpenseModal = closeCustomExpenseModal;
+window.saveCustomExpense = saveCustomExpense;
+window.deleteCustomExpense = deleteCustomExpense;
+window.renderCustomExpenses = renderCustomExpenses;
+window.openCustomAssetModal = openCustomAssetModal;
+window.closeCustomAssetModal = closeCustomAssetModal;
+window.saveCustomAsset = saveCustomAsset;
+window.deleteCustomAsset = deleteCustomAsset;
+window.renderCustomAssets = renderCustomAssets;
 window.getOrderProductCost = getOrderProductCost;
 window.getOrderActualCost = getOrderActualCost;
