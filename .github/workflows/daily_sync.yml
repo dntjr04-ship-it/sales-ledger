@@ -1,0 +1,31 @@
+name: 지마켓 100위 & 다나와 최저가 매일 자동 동기화
+
+on:
+  schedule:
+    # 매일 한국 시간 오전 9:00 (UTC 00:00)에 자동 실행
+    - cron: '0 0 * * *'
+  workflow_dispatch: # 깃허브 웹 화면에서 언제든 [Run workflow] 버튼으로 즉시 수동 실행 가능!
+
+jobs:
+  scrape-and-sync:
+    runs-on: windows-latest
+
+    steps:
+      - name: 코드 체크아웃
+        uses: actions/checkout@v4
+
+      - name: Node.js 20 환경 세팅
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: 의존성 패키지 설치
+        run: |
+          npm install
+
+      - name: 지마켓 100위 수집 및 다나와 최저가 매칭 & Supabase 전송
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+        run: |
+          node sync_to_cloud.js full

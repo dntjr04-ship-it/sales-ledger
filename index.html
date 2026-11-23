@@ -1,0 +1,1115 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>리사님의 만능 매출장부 & 경영 비서</title>
+  <link rel="stylesheet" href="style.css">
+  <!-- Chart.js for beautiful charts -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- Feather Icons for clean icons -->
+  <script src="https://cdn.jsdelivr.net/npm/feather-icons/dist/feather.min.js"></script>
+</head>
+<body>
+  <div class="app-layout">
+    <!-- 모바일 헤더 -->
+    <header class="mobile-header">
+      <button id="mobileMenuBtn" class="icon-btn" aria-label="메뉴 열기">
+        <i data-feather="menu"></i>
+      </button>
+      <div class="logo">
+        <span class="logo-badge">셀러</span>
+        <span class="logo-title">만능 매출장부</span>
+      </div>
+      <div class="mobile-user">
+        <span class="badge admin-badge">관리자</span>
+      </div>
+    </header>
+
+    <!-- 사이드바 네비게이션 -->
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-header">
+        <div class="logo">
+          <span class="logo-badge">리사's</span>
+          <span class="logo-title">만능 매출장부</span>
+        </div>
+        <p class="tagline">온라인 셀러 똑똑 경영 비서 ✨</p>
+      </div>
+
+      <!-- 사업자 선택 스위처 -->
+      <div class="business-switcher">
+        <label class="section-label">🏢 사업자 선택</label>
+        <div class="btn-group-toggle" id="businessFilterGroup">
+          <button class="toggle-btn active" data-biz="ALL" onclick="setBusinessFilter('ALL')">통합 전체</button>
+          <button class="toggle-btn" data-biz="사업자A" onclick="setBusinessFilter('사업자A')">사업자 A</button>
+          <button class="toggle-btn" data-biz="사업자B" onclick="setBusinessFilter('사업자B')">사업자 B</button>
+        </div>
+      </div>
+
+      <!-- 네비게이션 메뉴 -->
+      <nav class="nav-menu">
+        <button class="nav-item active" data-target="dashboardView" onclick="switchNav('dashboardView')">
+          <i data-feather="pie-chart"></i>
+          <span>대시보드</span>
+        </button>
+        <button class="nav-item" data-target="ordersView" onclick="switchNav('ordersView')">
+          <i data-feather="shopping-bag"></i>
+          <span>매입·매출 주문장</span>
+        </button>
+        <button class="nav-item" data-target="cardsView" onclick="switchNav('cardsView')">
+          <i data-feather="credit-card"></i>
+          <span>카드사 결제 관리</span>
+        </button>
+        <button class="nav-item" data-target="settlementView" onclick="switchNav('settlementView')">
+          <i data-feather="dollar-sign"></i>
+          <span>정산 미수금 & 통장</span>
+        </button>
+        <button class="nav-item" data-target="inventoryView" onclick="switchNav('inventoryView')">
+          <i data-feather="box"></i>
+          <span>재고 & 상품 원가</span>
+        </button>
+        <button class="nav-item" data-target="plView" onclick="switchNav('plView')">
+          <i data-feather="trending-up"></i>
+          <span>손익계산서 & 순자산</span>
+        </button>
+        <button class="nav-item" data-target="sourcingRadarView" onclick="switchNav('sourcingRadarView')">
+          <i data-feather="compass"></i>
+          <span>소싱 레이더 & 최저가</span>
+          <span class="badge" id="radarAlertBadge" style="background:#ef4444;color:#fff;font-size:10px;padding:2px 6px;margin-left:auto;border-radius:10px;display:none;">신규</span>
+        </button>
+        <button class="nav-item" data-target="uploadView" onclick="switchNav('uploadView')">
+          <i data-feather="upload-cloud"></i>
+          <span>엑셀/CSV 업로드</span>
+        </button>
+      </nav>
+
+      <!-- 사용자 & 구글 로그인 영역 -->
+      <div class="sidebar-footer">
+        <div class="user-card">
+          <div class="user-avatar" id="userAvatar">L</div>
+          <div class="user-info">
+            <div class="user-name-row">
+              <strong id="userName">리사 사장님</strong>
+              <span class="badge admin-badge" id="userRoleBadge">대표 관리자</span>
+            </div>
+            <span class="user-email" id="userEmail">lisa.ceo@google.com</span>
+          </div>
+        </div>
+        <button class="google-auth-btn" id="googleAuthBtn">
+          <i data-feather="log-out"></i>
+          <span id="authBtnText">구글 계정 전환</span>
+        </button>
+      </div>
+    </aside>
+
+    <!-- 메인 컨텐츠 영역 -->
+    <main class="main-content">
+      <!-- 상단 탑바 (데스크톱) -->
+      <header class="topbar">
+        <div class="topbar-left">
+          <h1 class="page-title" id="pageTitle">📊 실시간 경영 대시보드</h1>
+          <span class="biz-indicator" id="currentBizBadge">🏢 전체 사업자 통합 현황</span>
+        </div>
+        <div class="topbar-right">
+          <div class="quick-stat">
+            <span class="label">오늘 주문</span>
+            <strong class="value" id="topTodayOrders">0건</strong>
+          </div>
+          <div class="quick-stat highlight">
+            <span class="label">예상 순이익</span>
+            <strong class="value" id="topExpectedProfit">0원</strong>
+          </div>
+          <button class="btn btn-primary" onclick="switchNav('uploadView')">
+            <i data-feather="plus"></i> 새 엑셀 올리기
+          </button>
+        </div>
+      </header>
+
+      <!-- 1. 대시보드 뷰 -->
+      <section class="content-view active" id="dashboardView">
+        <!-- 핵심 지표 카드 4종 -->
+        <div class="stats-grid">
+          <div class="stat-card revenue">
+            <div class="stat-icon"><i data-feather="dollar-sign"></i></div>
+            <div class="stat-data">
+              <span class="stat-label">총 매출액 (판매가+배송비)</span>
+              <h2 class="stat-value" id="statTotalSales">0원</h2>
+              <span class="stat-sub" id="statSalesCount">총 0건 주문</span>
+            </div>
+          </div>
+
+          <div class="stat-card settlement">
+            <div class="stat-icon"><i data-feather="check-circle"></i></div>
+            <div class="stat-data">
+              <span class="stat-label">매출처 실 정산예정액 (결제기준가)</span>
+              <h2 class="stat-value" id="statNetSettlement">0원</h2>
+              <span class="stat-sub text-info">수수료 차감 후 내 손에 오는 돈</span>
+            </div>
+          </div>
+
+          <div class="stat-card cost">
+            <div class="stat-icon"><i data-feather="shopping-cart"></i></div>
+            <div class="stat-data">
+              <span class="stat-label">총 실 매입원가 (결제가)</span>
+              <h2 class="stat-value" id="statTotalCost">0원</h2>
+              <span class="stat-sub text-danger">포인트 차감 후 실 카드결제액</span>
+            </div>
+          </div>
+
+          <div class="stat-card profit">
+            <div class="stat-icon"><i data-feather="award"></i></div>
+            <div class="stat-data">
+              <span class="stat-label">예상 순이익 & 수익률</span>
+              <h2 class="stat-value" id="statNetProfit">0원</h2>
+              <span class="stat-sub text-success" id="statMarginRate">수익률 0.0%</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 2분할 그리드: 카드사 결제예정 vs 차트 -->
+        <div class="grid-2col">
+          <!-- 카드사별 결제예정금액 카드 -->
+          <div class="panel">
+            <div class="panel-header">
+              <div class="panel-title">
+                <i data-feather="credit-card"></i>
+                <h3>💳 이번 달 카드사별 결제예정금액</h3>
+              </div>
+              <span class="badge" id="cardCountBadge">0개 카드사</span>
+            </div>
+            <div class="panel-body">
+              <p class="panel-desc">소싱처에서 긁은 '결제가' 기준 카드사별 청구 예정액이에요!</p>
+              <div class="card-list" id="dashboardCardList">
+                <!-- 동적 렌더링 -->
+              </div>
+            </div>
+          </div>
+
+          <!-- 매출처별 비중 차트 -->
+          <div class="panel">
+            <div class="panel-header">
+              <div class="panel-title">
+                <i data-feather="pie-chart"></i>
+                <h3>🛒 판매처별 매출 비중</h3>
+              </div>
+            </div>
+            <div class="panel-body chart-box">
+              <canvas id="marketChart"></canvas>
+            </div>
+          </div>
+        </div>
+
+        <!-- 2분할 그리드: 많이 팔린 상품 vs 마진 큰 상품 -->
+        <div class="grid-2col">
+          <!-- 많이 판매된 상품 TOP 5 -->
+          <div class="panel">
+            <div class="panel-header">
+              <div class="panel-title">
+                <i data-feather="trending-up"></i>
+                <h3>🔥 가장 많이 판매된 효자 상품 TOP 5</h3>
+              </div>
+            </div>
+            <div class="panel-body">
+              <table class="simple-table">
+                <thead>
+                  <tr>
+                    <th>순위</th>
+                    <th>상품명</th>
+                    <th>판매수량</th>
+                    <th>총 매출액</th>
+                  </tr>
+                </thead>
+                <tbody id="topSellingTableBody">
+                  <!-- 동적 렌더링 -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- 마진이 큰 상품 TOP 5 -->
+          <div class="panel">
+            <div class="panel-header">
+              <div class="panel-title">
+                <i data-feather="zap"></i>
+                <h3>💎 알짜 마진 1등 상품 TOP 5</h3>
+              </div>
+            </div>
+            <div class="panel-body">
+              <table class="simple-table">
+                <thead>
+                  <tr>
+                    <th>순위</th>
+                    <th>상품명</th>
+                    <th>건당 마진</th>
+                    <th>마진율</th>
+                  </tr>
+                </thead>
+                <tbody id="topMarginTableBody">
+                  <!-- 동적 렌더링 -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 2. 매입·매출 주문장 뷰 -->
+      <section class="content-view" id="ordersView">
+        <div class="panel">
+          <div class="panel-header flex-between flex-wrap gap-2">
+            <div class="panel-title">
+              <i data-feather="list"></i>
+              <h3>전체 주문 매입·매출 상세장부</h3>
+              <span class="badge" style="background:#ecfdf5;color:#059669;margin-left:8px;">
+                💡 실적집계: [주문구분: 완료] & [발주상태: 완료] 건만 반영
+              </span>
+            </div>
+            <div class="table-actions flex-wrap">
+              <input type="text" id="orderSearchInput" placeholder="상품명, 고객명, 주문고유번호 검색..." class="input-search">
+              <select id="marketFilterSelect" class="select-box">
+                <option value="ALL">모든 판매사이트</option>
+              </select>
+              <select id="sourcingFilterSelect" class="select-box">
+                <option value="ALL">모든 소싱플랫폼</option>
+              </select>
+              <select id="sourcingTypeFilterSelect" class="select-box">
+                <option value="ALL">모든 매입유형 (위탁/사입)</option>
+                <option value="위탁">위탁 판매</option>
+                <option value="사입">사입 (재고관리)</option>
+              </select>
+              <select id="orderStageFilterSelect" class="select-box">
+                <option value="ALL">모든 주문구분</option>
+                <option value="완료">주문: 완료</option>
+                <option value="대기">주문: 대기</option>
+                <option value="취소">주문: 취소</option>
+                <option value="반품">주문: 반품</option>
+                <option value="교환">주문: 교환</option>
+              </select>
+              <select id="purchaseStageFilterSelect" class="select-box">
+                <option value="ALL">모든 발주상태</option>
+                <option value="완료">발주: 완료</option>
+                <option value="반품">발주: 반품</option>
+                <option value="취소">발주: 취소</option>
+              </select>
+              <button class="btn btn-primary btn-sm" onclick="openOrderModal(-1, 'CONSIGNMENT_SALE')">
+                <i data-feather="shopping-cart"></i> 🛒 위탁 매출 등록
+              </button>
+              <button class="btn btn-sm" onclick="openOrderModal(-1, 'PURCHASE_SALE')" style="background:#e0e7ff;color:#3730a3;border:1px solid #c7d2fe;font-weight:700;">
+                <i data-feather="send"></i> 🚀 사입 매출(출고) 등록
+              </button>
+              <button class="btn btn-secondary btn-sm" onclick="openOrderModal(-1, 'PURCHASE_ONLY')" style="background:#fef3c7;color:#92400e;border-color:#fde68a;">
+                <i data-feather="box"></i> 📦 사입 매입(입고) 등록
+              </button>
+            </div>
+          </div>
+          <div class="panel-body table-responsive scrollable-x">
+            <table class="data-table orders-1row-table" id="ordersTable">
+              <thead>
+                <tr>
+                  <th style="min-width:65px;">사업자</th>
+                  <th style="min-width:130px;">주문일자<br><span style="font-weight:normal;color:#64748b;font-size:11px;">(주문고유번호)</span></th>
+                  <th style="min-width:85px;">판매처</th>
+                  <th style="min-width:160px;">상품명 / 옵션</th>
+                  <th style="min-width:45px;text-align:center;">수량</th>
+                  <th style="min-width:65px;">고객명</th>
+                  <th style="min-width:90px;text-align:right;">판매가<br><span style="font-weight:normal;color:#64748b;font-size:11px;">(배송비포함)</span></th>
+                  <th style="min-width:85px;text-align:right;">정산예정가</th>
+                  <th style="min-width:95px;text-align:right;">정산가</th>
+                  <th style="min-width:80px;text-align:center;">주문구분</th>
+                  <th style="min-width:80px;text-align:center;">매입유형</th>
+                  <th style="min-width:100px;">소싱처 / 공급사</th>
+                  <th style="min-width:130px;">결제카드<br><span style="font-weight:normal;color:#64748b;font-size:11px;">(카드명의)</span></th>
+                  <th style="min-width:85px;text-align:right;">매입가</th>
+                  <th style="min-width:85px;text-align:right;">마진금액</th>
+                  <th style="min-width:65px;text-align:center;">마진율</th>
+                  <th style="min-width:80px;text-align:center;">발주상태</th>
+                  <th style="min-width:65px;text-align:center;">관리</th>
+                </tr>
+              </thead>
+              <tbody id="ordersTableBody">
+                <!-- 동적 렌더링 (한줄 구조) -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- 3. 카드사 결제 관리 뷰 -->
+      <section class="content-view" id="cardsView">
+        <div class="grid-cards-summary" id="cardsDetailGrid">
+          <!-- 카드 상세 카드들 동적 렌더링 -->
+        </div>
+
+        <div class="panel mt-4">
+          <div class="panel-header">
+            <div class="panel-title">
+              <i data-feather="credit-card"></i>
+              <h3>카드사별 결제 내역 상세</h3>
+            </div>
+          </div>
+          <div class="panel-body table-responsive">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>결제카드명 (카드명의 구분)</th>
+                  <th>결제플랫폼(소싱처)</th>
+                  <th>상품명</th>
+                  <th>결제일시</th>
+                  <th>실 결제금액 (원가)</th>
+                  <th>소싱처 주문번호</th>
+                  <th>공급사명</th>
+                </tr>
+              </thead>
+              <tbody id="cardTransactionsTableBody">
+                <!-- 동적 렌더링 -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- 4. 정산 미수금 & 통장 관리 뷰 -->
+      <section class="content-view" id="settlementView">
+        <div class="stats-grid">
+          <div class="stat-card settlement">
+            <div class="stat-icon"><i data-feather="inbox"></i></div>
+            <div class="stat-data">
+              <span class="stat-label">총 매출처 정산예정액</span>
+              <h2 class="stat-value" id="settleTotalDue">0원</h2>
+              <span class="stat-sub">수수료 차감 후 받아야 할 돈</span>
+            </div>
+          </div>
+          <div class="stat-card revenue">
+            <div class="stat-icon"><i data-feather="check"></i></div>
+            <div class="stat-data">
+              <span class="stat-label">통장 기입금 완료액</span>
+              <h2 class="stat-value" id="settleDeposited">0원</h2>
+              <span class="stat-sub text-success">실제 입금 확인된 금액</span>
+            </div>
+          </div>
+          <div class="stat-card cost">
+            <div class="stat-icon"><i data-feather="alert-circle"></i></div>
+            <div class="stat-data">
+              <span class="stat-label">남은 미수금 (미정산 잔액)</span>
+              <h2 class="stat-value text-danger" id="settleRemainingReceivable">0원</h2>
+              <span class="stat-sub text-danger">아직 통장에 안 들어온 돈!</span>
+            </div>
+          </div>
+          <div class="stat-card profit">
+            <div class="stat-icon"><i data-feather="archive"></i></div>
+            <div class="stat-data">
+              <span class="stat-label">현재 등록 통장 총 잔고</span>
+              <h2 class="stat-value" id="bankTotalBalance">0원</h2>
+              <span class="stat-sub">모든 등록 계좌 합계</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="grid-2col mt-4">
+          <!-- 판매처별 미수금 현황 -->
+          <div class="panel">
+            <div class="panel-header">
+              <div class="panel-title">
+                <i data-feather="clock"></i>
+                <h3>판매처별 정산 및 남은 미수금 현황</h3>
+              </div>
+            </div>
+            <div class="panel-body">
+              <table class="simple-table">
+                <thead>
+                  <tr>
+                    <th>판매사이트</th>
+                    <th>매출 기준가 합계</th>
+                    <th>입금 완료액</th>
+                    <th>남은 미수금</th>
+                    <th>정산 현황</th>
+                  </tr>
+                </thead>
+                <tbody id="marketReceivablesTableBody">
+                  <!-- 동적 렌더링 -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- 통장 계좌 목록 & 입출금 관리 -->
+          <div class="panel">
+            <div class="panel-header flex-between">
+              <div class="panel-title">
+                <i data-feather="book"></i>
+                <h3>등록 통장 & 입출금 내역</h3>
+              </div>
+              <button class="btn btn-secondary btn-sm" onclick="promptAddBankAccount()">+ 통장 추가</button>
+            </div>
+            <div class="panel-body">
+              <div class="bank-accounts-list" id="bankAccountsList">
+                <!-- 통장 목록 동적 렌더링 -->
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 5. 재고 & 상품별 원가 뷰 -->
+      <section class="content-view" id="inventoryView">
+        <div class="alert-info-box" style="background:#ecfdf5;border-color:#a7f3d0;color:#065f46;">
+          <i data-feather="check-circle"></i>
+          <div>
+            <strong>⭐ 리사님의 사입 재고 관리 규칙 적용 완료!</strong><br>
+            • <strong>위탁 품목</strong> : 재고 관리를 하지 않습니다.<br>
+            • <strong>사입 품목</strong> : 매출 없이 매입만 단독 등록 가능하며, 입고 수량에서 판매 수량을 차감하여 <strong>실제 보유 재고와 재고 평가 가치</strong>를 정확하게 관리합니다.
+          </div>
+        </div>
+
+        <div class="panel mt-4">
+          <div class="panel-header flex-between">
+            <div class="panel-title">
+              <i data-feather="package"></i>
+              <h3>📦 사입 상품 재고 현황 & 재고 평가액 (사입 품목 전용)</h3>
+            </div>
+            <button class="btn btn-primary btn-sm" onclick="openOrderModal(-1, 'PURCHASE_ONLY')">
+              <i data-feather="plus"></i> + 사입 매입(입고) 단독 등록
+            </button>
+          </div>
+          <div class="panel-body table-responsive">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>사입 상품명</th>
+                  <th>사입처 (공급사)</th>
+                  <th style="text-align:right;">사입 단가 (소싱기준가, 원)</th>
+                  <th style="text-align:center;">총 사입(입고) 수량</th>
+                  <th style="text-align:center;">판매(출고) 수량</th>
+                  <th style="text-align:center;">현재 보유 재고</th>
+                  <th style="text-align:right;">재고 평가 가치 (원)</th>
+                  <th style="text-align:center;">상태</th>
+                </tr>
+              </thead>
+              <tbody id="inventoryTableBody">
+                <!-- 동적 렌더링 (사입 품목만 표시) -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- 6. 손익계산서 & 순자산 뷰 -->
+      <section class="content-view" id="plView">
+        <!-- 순자산 요약 배너 -->
+        <div class="asset-banner">
+          <div class="asset-text">
+            <span class="sub">리사님의 현재 알짜 순자산 가치</span>
+            <h1 class="asset-amount" id="totalNetAssetValue">0원</h1>
+            <p class="asset-formula">
+              <strong>[계산 공식]</strong> (통장 잔고 <span id="fBank">0원</span>) + (정산 미수금 <span id="fReceivable">0원</span>) + (창고 재고가치 <span id="fStock">0원</span>) - (나갈 카드값 <span id="fCard">0원</span>)
+            </p>
+          </div>
+          <div class="asset-chart-badge">
+            <i data-feather="shield"></i>
+            <span>재무 건전성 우수</span>
+          </div>
+        </div>
+
+        <!-- 손익계산서 표 -->
+        <div class="panel mt-4">
+          <div class="panel-header">
+            <div class="panel-title">
+              <i data-feather="file-text"></i>
+              <h3>2026 연간 경영 손익계산서 (P&L)</h3>
+            </div>
+          </div>
+          <div class="panel-body">
+            <table class="pl-table">
+              <tbody>
+                <tr class="pl-group-header">
+                  <td colspan="2"><strong>1. 매출 (Revenue)</strong></td>
+                  <td class="text-right"><strong id="plSalesTotal">0원</strong></td>
+                </tr>
+                <tr>
+                  <td class="pl-indent">총 판매 매출액 (판매가+배송비)</td>
+                  <td></td>
+                  <td class="text-right" id="plGrossSales">0원</td>
+                </tr>
+                <tr>
+                  <td class="pl-indent">마켓 수수료 차감액 (판매가 - 결제기준가)</td>
+                  <td></td>
+                  <td class="text-right text-danger" id="plMarketFees">-0원</td>
+                </tr>
+                <tr class="pl-subtotal">
+                  <td class="pl-indent"><strong>순 매출액 (결제기준가 합계)</strong></td>
+                  <td></td>
+                  <td class="text-right"><strong id="plNetSales">0원</strong></td>
+                </tr>
+
+                <tr class="pl-group-header">
+                  <td colspan="2"><strong>2. 매출원가 (Cost of Goods Sold)</strong></td>
+                  <td class="text-right text-danger"><strong id="plCogsTotal">-0원</strong></td>
+                </tr>
+                <tr>
+                  <td class="pl-indent">실 상품 매입비용 (결제가 합산)</td>
+                  <td></td>
+                  <td class="text-right text-danger" id="plPurchaseCost">-0원</td>
+                </tr>
+
+                <tr class="pl-total-row">
+                  <td colspan="2"><strong>3. 매출총이익 (Gross Profit)</strong></td>
+                  <td class="text-right"><strong class="text-success" id="plGrossProfit">0원</strong></td>
+                </tr>
+
+                <tr class="pl-group-header">
+                  <td colspan="2"><strong>4. 판매비 및 일반관리비 (SG&A)</strong></td>
+                  <td class="text-right text-danger"><strong id="plExpenseTotal">-0원</strong></td>
+                </tr>
+                <tr>
+                  <td class="pl-indent">기타 잡비 & 포장 부자재 (추정치)</td>
+                  <td><input type="number" id="inputOtherExpense" value="50000" class="input-inline" onchange="calculatePL()"></td>
+                  <td class="text-right text-danger" id="plOtherExpense">-50,000원</td>
+                </tr>
+                <tr>
+                  <td class="pl-indent">세금 적립금 (부가세/종소세 예상 10%)</td>
+                  <td></td>
+                  <td class="text-right text-danger" id="plTaxReserve">-0원</td>
+                </tr>
+
+                <tr class="pl-final-row">
+                  <td colspan="2"><strong>🏆 최종 당기순이익 (Net Profit)</strong></td>
+                  <td class="text-right"><h3 class="final-profit" id="plFinalNetProfit">0원</h3></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- 7. 엑셀/CSV 업로드 뷰 -->
+      <section class="content-view" id="uploadView">
+        <div class="panel">
+          <div class="panel-header">
+            <div class="panel-title">
+              <i data-feather="upload-cloud"></i>
+              <h3>새 주문 내역 파일 업로드 (CSV / 엑셀)</h3>
+            </div>
+          </div>
+          <div class="panel-body">
+            <!-- 드래그 앤 드롭 영역 -->
+            <div class="upload-dropzone" id="dropzone">
+              <div class="drop-icon"><i data-feather="file-plus"></i></div>
+              <h3>주문 내역 파일(CSV)을 이곳에 끌어다 놓으세요</h3>
+              <p>또는 아래 버튼을 눌러 컴퓨터에서 파일을 선택할 수 있어요!</p>
+              <input type="file" id="fileInput" accept=".csv, .txt, .xlsx, .xls" style="display: none;">
+              <button class="btn btn-primary" onclick="document.getElementById('fileInput').click()">
+                내 컴퓨터에서 파일 찾기
+              </button>
+            </div>
+
+            <div class="upload-guide mt-4">
+              <h4>💡 리사님의 샘플 파일 자동 로드</h4>
+              <p>현재 작업 폴더에 저장된 <code>sample_orders.csv</code> 파일을 언제든지 다시 불러와 테스트할 수 있어요!</p>
+              <button class="btn btn-secondary" id="btnReloadSample">
+                <i data-feather="refresh-cw"></i> 기본 샘플 데이터 다시 채우기
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 8. 지마켓 베스트 소싱 & 실시간 최저가 레이더 뷰 -->
+      <section class="content-view" id="sourcingRadarView">
+        <!-- 상단 1줄 통합 요약 & 수집기 바 (슬림화) -->
+        <div class="radar-compact-top-bar" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:10px 18px;margin-bottom:14px;box-shadow:0 1px 3px rgba(0,0,0,0.04);">
+          <div style="display:flex;align-items:center;flex-wrap:wrap;gap:14px;font-size:13px;color:#475569;">
+            <button type="button" id="btnServerStatusConnect" onclick="handleOneClickServerConnect()" style="background:#dcfce7;color:#15803d;font-size:12px;font-weight:800;padding:5px 11px;border-radius:8px;border:1px solid #86efac;cursor:pointer;display:inline-flex;align-items:center;gap:5px;transition:all 0.2s;" title="클릭하면 로컬 수집 서버 상태를 확인하거나 꺼져 있을 때 1클릭으로 서버를 자동으로 켭니다!">
+              <span id="serverStatusDot">🟢</span>
+              <span id="serverStatusLabel">서버 연결됨</span>
+            </button>
+            <div style="display:flex;align-items:center;gap:5px;">
+              <span>📦 분석 상품</span>
+              <strong id="statRadarTotalCount" style="color:#1e293b;font-size:14px;">100개</strong>
+            </div>
+            <span style="color:#cbd5e1;">|</span>
+            <div style="display:flex;align-items:center;gap:5px;">
+              <span>💸 마진 발생 알짜</span>
+              <strong id="statRadarHighMarginCount" style="color:#059669;font-size:14px;">0개</strong>
+            </div>
+            <span style="color:#cbd5e1;">|</span>
+            <div style="display:flex;align-items:center;gap:5px;">
+              <span>💎 알짜 평균 마진율</span>
+              <strong id="statRadarAvgMargin" style="color:#d97706;font-size:14px;">평균 0.0%</strong>
+            </div>
+            <span style="color:#cbd5e1;">|</span>
+            <div style="display:flex;align-items:center;gap:5px;">
+              <span>⏰</span>
+              <span id="monitorCountdownText" style="font-size:12.5px;color:#334155;">
+                🟢 <strong>감시 중</strong> (다음 재조회: 30분 00초)
+              </span>
+            </div>
+          </div>
+          <div class="radar-banner-actions" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+            <button class="btn btn-sm" id="btnSyncCloudBest" onclick="handleSyncCloudBest100()" style="background:linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);color:#fff;font-weight:800;border:none;padding:7px 15px;border-radius:8px;cursor:pointer;font-size:12.5px;display:inline-flex;align-items:center;gap:6px;box-shadow:0 2px 6px rgba(124,58,237,0.3);transition:all 0.2s;" title="지마켓 최신 베스트 100위를 지금 바로 수집하여 Supabase 클라우드에 즉시 동기화합니다!">
+              <span>⚡ 최신 100위 수집 & 클라우드 전송</span>
+            </button>
+            <button class="btn btn-sm" id="btnOpenAlertHistory" onclick="openRadarAlertModal()" style="background:#f8fafc;color:#334155;font-weight:700;border:1px solid #cbd5e1;padding:7px 12px;border-radius:8px;cursor:pointer;font-size:12.5px;display:inline-flex;align-items:center;gap:5px;" title="실시간 최저가 변동 및 재조회 알림 히스토리 보기">
+              <span>🔔 알림 히스토리</span>
+              <span id="radarAlertCountChip" class="badge" style="background:#ef4444;color:#fff;font-size:10px;padding:1px 6px;border-radius:10px;display:none;">0</span>
+            </button>
+            <button class="btn btn-sm" id="btnOpenGmarketCrawler" onclick="openCrawlerModalWithTab('gmarket')" style="background:#059669;color:#fff;font-weight:800;border:none;padding:7px 14px;border-radius:8px;cursor:pointer;font-size:12.5px;display:inline-flex;align-items:center;gap:5px;box-shadow:0 2px 4px rgba(5,150,105,0.25);" title="오늘의 지마켓 베스트 1~100위 상품 및 판매가 갱신">
+              <span>🛒 지마켓 100위 수집기</span>
+            </button>
+            <button class="btn btn-sm" id="btnOpenDanawaCrawler" onclick="openCrawlerModalWithTab('danawa')" style="background:#2563eb;color:#fff;font-weight:800;border:none;padding:7px 14px;border-radius:8px;cursor:pointer;font-size:12.5px;display:inline-flex;align-items:center;gap:5px;box-shadow:0 2px 4px rgba(37,99,235,0.25);" title="다나와 실시간 최저가 및 카탈로그 링크 수집">
+              <span>🔵 다나와 최저가 수집기</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- 메인 패널: 필터 & 베스트 100 테이블 -->
+        <div class="panel">
+          <div class="panel-header flex-between flex-wrap gap-2">
+            <div class="panel-title">
+              <i data-feather="list"></i>
+              <h3>지마켓 베스트 100 & 소싱처 최저가 비교</h3>
+            </div>
+
+            <!-- 자동 감시 모드 -->
+            <div style="display:flex;align-items:center;gap:10px;background:#f8fafc;padding:6px 12px;border-radius:10px;border:1px solid #e2e8f0;">
+              <label style="font-size:12px;font-weight:700;color:#1e293b;display:flex;align-items:center;gap:6px;cursor:pointer;">
+                <input type="checkbox" id="toggleAutoMonitorInput" onchange="toggleAutoMonitor(this.checked)" checked style="width:16px;height:16px;accent-color:#4f46e5;">
+                🔔 자동 감시
+              </label>
+              <span style="color:#cbd5e1;">|</span>
+              <label style="font-size:12px;color:#64748b;font-weight:600;">주기:</label>
+              <select id="selectMonitorInterval" class="select-box" onchange="changeMonitorInterval(this.value)" style="padding:3px 8px;font-size:12px;">
+                <option value="30">30초 (테스트)</option>
+                <option value="600">10분</option>
+                <option value="1800" selected>30분</option>
+                <option value="3600">1시간</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="panel-body">
+            <!-- G마켓 베스트 공식 2단 카테고리 (중분류 13종 & 소분류 하위 탭) -->
+            <div class="gmarket-category-nav" style="margin-bottom:14px;">
+              <!-- 1단: 지마켓 중분류 탭 -->
+              <div class="radar-cat-group" id="radarMainCategoryBar" style="margin-bottom:8px;display:flex;flex-wrap:wrap;gap:6px;">
+                <button class="radar-cat-btn active" data-group="100000000" data-cat="ALL" onclick="selectGmarketMainCategory('100000000', 'ALL')">🏆 전체</button>
+                <button class="radar-cat-btn" data-group="100000006" data-cat="신선식품" onclick="selectGmarketMainCategory('100000006', '신선식품')">🍊 신선식품</button>
+                <button class="radar-cat-btn" data-group="100000005" data-cat="가공식품" onclick="selectGmarketMainCategory('100000005', '가공식품')">🥫 가공식품</button>
+                <button class="radar-cat-btn" data-group="100000007" data-cat="생필품/육아" onclick="selectGmarketMainCategory('100000007', '생필품/육아')">🧻 생필품/육아</button>
+                <button class="radar-cat-btn" data-group="100001001" data-cat="생활/주방" onclick="selectGmarketMainCategory('100001001', '생활/주방')">🍳 생활/주방</button>
+                <button class="radar-cat-btn" data-group="100000001" data-cat="패션/잡화" onclick="selectGmarketMainCategory('100000001', '패션/잡화')">👗 패션/잡화</button>
+                <button class="radar-cat-btn" data-group="100000003" data-cat="뷰티" onclick="selectGmarketMainCategory('100000003', '뷰티')">💄 뷰티</button>
+                <button class="radar-cat-btn" data-group="100001007" data-cat="디지털/가전" onclick="selectGmarketMainCategory('100001007', '디지털/가전')">💻 디지털/가전</button>
+                <button class="radar-cat-btn" data-group="100001004" data-cat="가구/홈" onclick="selectGmarketMainCategory('100001004', '가구/홈')">🛋️ 가구/홈</button>
+                <button class="radar-cat-btn" data-group="100001002" data-cat="스포츠/건강" onclick="selectGmarketMainCategory('100001002', '스포츠/건강')">⚽ 스포츠/건강</button>
+                <button class="radar-cat-btn" data-group="100001003" data-cat="취미/문구/펫" onclick="selectGmarketMainCategory('100001003', '취미/문구/펫')">🐶 취미/문구/펫</button>
+                <button class="radar-cat-btn" data-group="100001009" data-cat="도서/음반" onclick="selectGmarketMainCategory('100001009', '도서/음반')">📚 도서/음반</button>
+                <button class="radar-cat-btn" data-group="100001011" data-cat="e쿠폰" onclick="selectGmarketMainCategory('100001011', 'e쿠폰')">🎫 e쿠폰</button>
+              </div>
+
+              <!-- 2단: 지마켓 소분류 하위 바 + 해당 중/소분류 100위 실시간 수집 버튼 -->
+              <div id="radarSubCategoryWrap" style="display:none;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:8px 14px;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
+                <div id="radarSubCategoryBar" style="display:flex;align-items:center;flex-wrap:wrap;gap:6px;">
+                  <!-- 동적 소분류 버튼 렌더링 -->
+                </div>
+                <button type="button" id="btnFetchCategoryBest100" onclick="fetchSelectedCategoryBest100()" class="btn btn-sm" style="background:#059669;color:#fff;font-weight:800;border:none;padding:5px 12px;border-radius:6px;cursor:pointer;font-size:12px;white-space:nowrap;" title="현재 선택한 분류의 100위만 지마켓에서 새로 다시 불러옵니다">
+                  🔄 이 분류만 다시 불러오기
+                </button>
+              </div>
+            </div>
+
+            <!-- 검색 및 세부 필터 툴바 -->
+            <div class="table-actions flex-wrap" style="margin-bottom:16px;">
+              <input type="text" id="radarSearchInput" placeholder="베스트 상품명 또는 소싱처 검색..." class="input-search" oninput="handleRadarSearch(this.value)" style="min-width:260px;">
+              
+              <select id="radarPlatformSelect" class="select-box" onchange="handleRadarPlatformFilter(this.value)">
+                <option value="ALL">🏢 전체 상품 보기</option>
+                <option value="danawa_cheaper">🔵 다나와가 더 저렴 (마진 발생 상품)</option>
+                <option value="danawa_catalog">🟢 1:1 카탈로그 매칭 상품만</option>
+                <option value="gmarket_cheaper">⚡ 지마켓 단독/최저가 상품</option>
+              </select>
+
+              <select id="radarMarginSelect" class="select-box" onchange="handleRadarMinMargin(this.value)">
+                <option value="0">💰 모든 마진율 보기</option>
+                <option value="15">🔥 마진 15% 이상 알짜만</option>
+                <option value="25">💎 마진 25% 이상 대박마진만</option>
+                <option value="35">👑 마진 35% 이상 초고마진만</option>
+              </select>
+
+              <select id="radarSortSelect" class="select-box" onchange="handleRadarSort(this.value)">
+                <option value="MARGIN_RATE_DESC">🥇 마진율 높은 순</option>
+                <option value="MARGIN_AMT_DESC">💸 마진금액 큰 순</option>
+                <option value="RANK_ASC">🏆 지마켓 랭킹 순 (1위부터)</option>
+                <option value="PRICE_ASC">📉 최저 소싱가 순</option>
+              </select>
+
+              <button id="btnRadarFavorites" class="btn btn-sm" onclick="toggleRadarFavoritesFilter()" style="padding:6px 12px;font-weight:700;background:#fff;border:1.5px solid #f59e0b;color:#b45309;border-radius:6px;cursor:pointer;display:inline-flex;align-items:center;gap:4px;" title="내가 찜한 관심상품만 모아서 봅니다">
+                ⭐ 관심상품만 보기 (<span id="radarFavCountBadge">0</span>)
+              </button>
+            </div>
+
+            <!-- 베스트 100 & 소싱처 테이블 -->
+            <div class="table-responsive scrollable-x">
+              <table class="data-table orders-1row-table" id="sourcingRadarTable">
+                <thead>
+                  <tr>
+                    <th style="min-width:60px;text-align:center;">순위</th>
+                    <th style="min-width:260px;">지마켓 베스트 상품명</th>
+                    <th style="min-width:115px;text-align:right;">지마켓 판매가</th>
+                    <th style="min-width:240px;text-align:center;background:#f0f5ff;color:#1e40af;">🔵 다나와 가격비교 & 최저가 상세</th>
+                    <th style="min-width:120px;text-align:right;">예상 마진</th>
+                    <th style="min-width:115px;text-align:center;">31개처 검색</th>
+                    <th style="min-width:95px;text-align:center;">⭐ 관심</th>
+                  </tr>
+                </thead>
+                <tbody id="sourcingRadarTableBody">
+                  <!-- 동적 렌더링 -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- 📝 주문 직접 등록 및 사입 단독 등록 모달 -->
+  <div class="modal-overlay" id="orderModalOverlay">
+    <div class="modal-card" style="max-width: 920px;">
+      <div class="modal-header">
+        <h3 id="modalTitle">📝 주문 직접 등록 / 사입 등록</h3>
+        <button type="button" class="modal-close-btn" onclick="closeOrderModal()">&times;</button>
+      </div>
+      <div class="modal-body" style="padding: 24px; overflow-y: auto; max-height: 82vh;">
+        <form id="orderForm" onsubmit="handleSaveOrder(event)">
+          <input type="hidden" id="formOrderIndex" value="-1">
+
+          <!-- 등록 모드 선택 3단 탭 (위탁 매출 vs 사입 매출 vs 사입 매입) ⭐ -->
+          <div class="mb-4" style="background:#f1f5f9;padding:6px;border-radius:10px;display:flex;gap:6px;">
+            <button type="button" class="btn btn-sm btn-primary" id="btnModeConsignment" onclick="toggleModalMode('CONSIGNMENT_SALE')" style="flex:1;font-weight:700;">
+              🛒 위탁 주문 등록 (매출+소싱)
+            </button>
+            <button type="button" class="btn btn-sm btn-secondary" id="btnModePurchaseSale" onclick="toggleModalMode('PURCHASE_SALE')" style="flex:1;font-weight:700;color:#3730a3;">
+              🚀 사입 매출(출고) 등록 (+택배비)
+            </button>
+            <button type="button" class="btn btn-sm btn-secondary" id="btnModePurchaseOnly" onclick="toggleModalMode('PURCHASE_ONLY')" style="flex:1;font-weight:700;color:#92400e;">
+              📦 사입 매입(입고) 등록 (매출없음)
+            </button>
+          </div>
+
+          <!-- 1. 기본 정보 (공통: 사업자, 일자, 고유번호, 매입유형, 상품명, 옵션, 수량) -->
+          <div class="form-section-title">
+            <span class="badge" style="background:#e0e7ff;color:#3730a3;" id="badgeBasicInfo">[상품 및 기본 정보]</span>
+            <span id="labelBasicInfo">사업자, 상품명, 수량 및 소싱 구분</span>
+          </div>
+          <div class="form-grid-3">
+            <div class="form-group">
+              <label>사업자 구분 *</label>
+              <select id="formBiz" class="form-control" required>
+                <option value="사업자A">사업자A</option>
+                <option value="사업자B">사업자B</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label id="labelOrderDate">주문/입고일자 *</label>
+              <input type="text" id="formOrderDate" class="form-control" placeholder="2026-11-15" required>
+            </div>
+            <div class="form-group">
+              <label id="labelOrderNo">고유번호 (자동부여)</label>
+              <input type="text" id="formOrderNo" class="form-control" placeholder="ORD-xxx 또는 BUY-xxx" required>
+            </div>
+
+            <div class="form-group">
+              <label>매입유형 (사입 vs 위탁) ⭐ *</label>
+              <select id="formSourcingType" class="form-control" required onchange="handleModalSourcingTypeChange(this.value)">
+                <option value="위탁">위탁 (소싱 발주)</option>
+                <option value="사입">사입 (창고 재고 관리)</option>
+              </select>
+            </div>
+            <div class="form-group span-2">
+              <label>상품명 *</label>
+              <input type="text" id="formProductName" class="form-control" placeholder="상품명을 입력하세요" required>
+            </div>
+
+            <div class="form-group">
+              <label>주문선택사항 (옵션)</label>
+              <input type="text" id="formOption" class="form-control" placeholder="단일옵션, 125g 1세트 등">
+            </div>
+            <div class="form-group">
+              <label>수량 *</label>
+              <input type="number" id="formQty" class="form-control" value="1" min="1" required oninput="handleModalQtyChange()">
+            </div>
+            <div class="form-group" id="groupOrderStage">
+              <label>주문구분 (매출단계) *</label>
+              <select id="formOrderStage" class="form-control">
+                <option value="완료">완료 (실적집계 반영)</option>
+                <option value="대기">대기</option>
+                <option value="취소">취소</option>
+                <option value="반품">반품</option>
+                <option value="교환">교환</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- 2-A. 사입 상품 전용: 창고 재고 선택 & 출고 택배비 입력 섹션 (사입 매출 모드일 때만 표시 ⭐) -->
+          <div id="sectionStockOutInfo" style="display:none;margin-top:16px;background:#eef2ff;border:1px solid #c7d2fe;padding:16px;border-radius:12px;">
+            <div class="form-section-title" style="margin-bottom:12px;">
+              <span class="badge" style="background:#4f46e5;color:#fff;">[사입 재고 출고 & 택배비 반영]</span>
+              <span style="color:#3730a3;font-weight:600;">창고 재고 단가와 출고 택배비를 합산하여 매출 건당 매입원가를 계산합니다</span>
+            </div>
+            <div class="form-grid-3">
+              <div class="form-group span-2">
+                <label style="color:#3730a3;font-weight:700;">📦 창고 사입 상품 선택 (보유 재고 자동연동)</label>
+                <select id="formStockSelect" class="form-control" onchange="handleStockProductSelect(this)">
+                  <option value="">-- 보유 사입 재고에서 선택하거나 직접 입력하세요 --</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label style="color:#3730a3;font-weight:700;">사입 재고 단가 (원) *</label>
+                <input type="number" id="formStockUnitCost" class="form-control" placeholder="13500" oninput="calcPurchaseSaleTotalCost()">
+              </div>
+              <div class="form-group span-2">
+                <label style="color:#b91c1c;font-weight:700;">🚚 출고 택배비 (건당 포장/배송원가, 원) ⭐ *</label>
+                <input type="number" id="formDeliveryFeeOut" class="form-control" value="2500" placeholder="2500" oninput="calcPurchaseSaleTotalCost()">
+              </div>
+              <div class="form-group" style="background:#fff;padding:8px 12px;border-radius:8px;border:1px solid #c7d2fe;">
+                <label style="color:#1e293b;font-weight:700;font-size:11px;">매출 건당 총 비용 (마진 계산용)</label>
+                <div id="previewPurchaseSaleCost" style="font-size:16px;font-weight:800;color:#dc2626;margin-top:2px;">0원</div>
+                <div id="previewPurchaseSaleCostSub" style="font-size:10px;color:#64748b;">(상품원가 + 택배비 = 마진 계산에 차감)</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 2-B. 매출 정보 섹션 (위탁 매출 및 사입 매출 시 표시) -->
+          <div id="sectionSaleInfo" style="margin-top: 18px;">
+            <div class="form-section-title">
+              <span class="badge" style="background:#dbeafe;color:#1e40af;">[매출 정보]</span>
+              <span>판매처 마켓 및 고객 결제 내역</span>
+            </div>
+            <div class="form-grid-3">
+              <div class="form-group">
+                <label>판매사이트명 *</label>
+                <input type="text" id="formMarket" class="form-control" placeholder="스마트스토어, 쿠팡, 올웨이즈 등">
+              </div>
+              <div class="form-group">
+                <label>고객명 (수령자명)</label>
+                <input type="text" id="formRecipient" class="form-control" placeholder="고객명">
+              </div>
+              <div class="form-group">
+                <label id="labelSalePrice">판매가 (원) *</label>
+                <input type="number" id="formSalePrice" class="form-control" placeholder="29700" oninput="handleModalSalePriceChange()">
+                <small id="helpSalePrice" style="display:none;color:#4f46e5;font-size:11px;margin-top:2px;font-weight:600;">💡 개당 단가가 아닌, 이 주문 건의 총 판매금액(수량 전체)을 입력하세요.</small>
+              </div>
+              <div class="form-group">
+                <label>배송비금액 (원)</label>
+                <input type="number" id="formShipping" class="form-control" value="0" oninput="handleModalSalePriceChange()">
+              </div>
+              <div class="form-group">
+                <label>정산예정가 (원) <span style="font-size:11px;color:#64748b;font-weight:normal;">(기본: 총판매+배송비)</span></label>
+                <input type="number" id="formStandardPrice" class="form-control" placeholder="총판매금액 + 배송비" oninput="handleStandardPriceInput()">
+              </div>
+              <div class="form-group">
+                <label>실제 정산가 (원) <span style="font-size:11px;color:#64748b;font-weight:normal;">(기본: 총판매+배송비)</span></label>
+                <input type="number" id="formActualSettlement" class="form-control" placeholder="총판매금액 + 배송비" oninput="this.dataset.manualEdited='true'">
+              </div>
+            </div>
+          </div>
+
+          <!-- 3. 매입 & 결제 정보 섹션 (사입 및 위탁 매입 / 실시간 소싱기준가 계산) -->
+          <div id="sectionPurchaseInfo" style="margin-top: 18px;">
+            <div class="form-section-title">
+              <span class="badge" style="background:#fef3c7;color:#92400e;">[매입 및 결제 정보]</span>
+              <span>소싱처 발주, 결제카드, 소싱기준가 실시간 계산</span>
+            </div>
+            <div class="form-grid-3">
+              <div class="form-group">
+                <label>결제플랫폼 (소싱처) *</label>
+                <input type="text" id="formSourcingPlatform" class="form-control" placeholder="지마켓, 옥션, 롯데온, 11번가 등" required>
+              </div>
+              <div class="form-group">
+                <label>판매처명 (공급사)</label>
+                <input type="text" id="formSupplierName" class="form-control" placeholder="공급업체 상호">
+              </div>
+              <div class="form-group">
+                <label>발주상태 *</label>
+                <select id="formPurchaseStage" class="form-control" required>
+                  <option value="완료">완료 (실적집계 반영)</option>
+                  <option value="반품">반품</option>
+                  <option value="취소">취소</option>
+                </select>
+              </div>
+
+              <div class="form-group">
+                <label>결제카드명 *</label>
+                <input type="text" id="formPaymentCard" class="form-control" placeholder="스마일카드 Edition3, 국민카드 등" required>
+              </div>
+              <div class="form-group">
+                <label>카드명의 (집계 구분 기준) ⭐ *</label>
+                <input type="text" id="formCardHolder" class="form-control" placeholder="예: 강우석, 리사 등" required>
+              </div>
+              <div class="form-group" style="background:#f8fafc;padding:6px 10px;border-radius:8px;border:1px dashed #cbd5e1;">
+                <label style="color:#0f172a;font-weight:700;">💳 카드결제가 (실 결제금액) *</label>
+                <input type="number" id="formCardPayAmount" class="form-control" placeholder="실제 카드 승인 금액" required oninput="calcSourcingStandardPrice()">
+              </div>
+
+              <div class="form-group">
+                <label>카드할인금액 (원)</label>
+                <input type="number" id="formCardDiscount" class="form-control" value="0" placeholder="0" oninput="calcSourcingStandardPrice()">
+              </div>
+              <div class="form-group">
+                <label>포인트 사용액 (원)</label>
+                <input type="number" id="formPointUsed" class="form-control" value="0" placeholder="0" oninput="calcSourcingStandardPrice()">
+              </div>
+              <div class="form-group">
+                <label>포인트 적립액 (원)</label>
+                <input type="number" id="formPointEarned" class="form-control" value="0" placeholder="0" oninput="calcSourcingStandardPrice()">
+              </div>
+
+              <div class="form-group span-2" style="background:#eff6ff;padding:10px 14px;border-radius:10px;border:1px solid #bfdbfe;">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+                  <label id="labelSourcingStandardPrice" style="color:#1e40af;font-weight:700;margin:0;">🎯 소싱기준가 (원) *</label>
+                  <span id="formulaSourcingText" style="font-size:11px;color:#2563eb;font-weight:600;">수식: 카드결제가 - 카드할인금액 - 포인트적립액 + 포인트사용액</span>
+                </div>
+                <input type="number" id="formSourcingStandardPrice" class="form-control" placeholder="자동으로 계산됩니다" style="font-weight:700;color:#1e40af;font-size:16px;" required>
+              </div>
+
+              <div class="form-group">
+                <label>택배사</label>
+                <input type="text" id="formCourier" class="form-control" placeholder="CJ대한통운 등">
+              </div>
+              <div class="form-group">
+                <label>송장번호</label>
+                <input type="text" id="formTrackingNo" class="form-control" placeholder="운송장 번호">
+              </div>
+            </div>
+          </div>
+
+          <div class="modal-footer mt-4" style="display:flex;justify-content:flex-end;gap:10px;">
+            <button type="button" class="btn btn-secondary" onclick="closeOrderModal()">취소</button>
+            <button type="submit" class="btn btn-primary" id="btnSubmitOrder" style="padding:10px 24px;font-size:14px;font-weight:700;">💾 등록 및 저장하기</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- 🔔 신규 최저가 포착 알림 로그 모달 -->
+  <div class="modal-overlay" id="radarAlertModalOverlay">
+    <div class="modal-card" style="max-width: 650px;">
+      <div class="modal-header">
+        <h3>🔔 실시간 최저가 포착 알림 로그</h3>
+        <button type="button" class="modal-close-btn" onclick="closeRadarAlertModal()">&times;</button>
+      </div>
+      <div class="modal-body" style="padding: 20px; max-height: 70vh; overflow-y: auto;">
+        <p style="font-size: 13px; color: #64748b; margin-bottom: 14px;">
+          자동 감시 모드가 켜져 있는 동안 탐지된 실시간 가격 하락 및 최저가 갱신 내역입니다.
+        </p>
+        <div id="radarAlertLogList">
+          <!-- 동적 렌더링 -->
+        </div>
+      </div>
+      <div class="modal-footer" style="padding: 12px 20px;">
+        <button type="button" class="btn btn-secondary" onclick="closeRadarAlertModal()">닫기</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 🚀 실시간 최저가 수집기 & 지마켓 연동 모달 (심플화) -->
+  <div class="modal-overlay" id="crawlerModalOverlay" style="display:none;">
+    <div class="modal-card" style="max-width: 600px; border-radius: 14px; overflow: hidden; box-shadow: 0 20px 40px -10px rgba(0,0,0,0.3); padding: 0;">
+      <div class="modal-header" style="background:#1e1b4b; color: #fff; padding: 16px 20px; display:flex; justify-content:space-between; align-items:center;">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span style="font-size: 20px;">🚀</span>
+          <h3 style="margin: 0; font-size: 16px; font-weight: 800; color: #fff;">
+            실시간 최저가 수집 &amp; 갱신
+          </h3>
+        </div>
+        <button type="button" class="modal-close-btn" onclick="closeCrawlerModal()" style="color:#fff;font-size:22px;border:none;background:none;cursor:pointer;">&times;</button>
+      </div>
+
+      <div class="modal-body" style="padding: 20px; max-height: 75vh; overflow-y: auto;">
+        <!-- 탭 버튼 -->
+        <div style="display:flex;gap:8px;margin-bottom:16px;border-bottom:1px solid #e2e8f0;padding-bottom:10px;">
+          <button type="button" id="tabGmarketBtn" class="btn btn-sm btn-primary" onclick="switchCrawlerTab('gmarket')" style="font-weight:700;">
+            1️⃣ 지마켓 100위 갱신
+          </button>
+          <button type="button" id="tabDanawaBtn" class="btn btn-sm btn-secondary" onclick="switchCrawlerTab('danawa')" style="font-weight:700;">
+            2️⃣ 다나와 최저가 수집
+          </button>
+        </div>
+
+        <!-- 탭 1: 지마켓 100위 갱신 -->
+        <div id="tabGmarketContent">
+          <p style="font-size:13px;color:#475569;margin-bottom:16px;line-height:1.5;">
+            오늘의 지마켓 베스트 1위부터 100위 상품명, 실제 판매가, 직링크를 실시간으로 가져옵니다.
+          </p>
+
+          <div style="text-align:center;margin:20px 0;">
+            <button type="button" id="btnRunGmarketAuto" class="btn btn-primary" onclick="startGmarketAutoScrape()" style="background:#059669;font-weight:800;padding:12px 28px;font-size:14.5px;border-radius:8px;cursor:pointer;border:none;">
+              🚀 지마켓 100위 자동 수집하기
+            </button>
+          </div>
+
+          <!-- 지마켓 수집 진행률 상태창 -->
+          <div id="gmarketProgressArea" style="display:none;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:12px;margin-top:12px;">
+            <div style="display:flex;justify-content:space-between;font-size:12px;font-weight:700;margin-bottom:6px;">
+              <span id="gmarketProgressText" style="color:#1e293b;">수집 중입니다...</span>
+              <span id="gmarketProgressPercent" style="color:#059669;">0%</span>
+            </div>
+            <div style="width:100%;height:8px;background:#e2e8f0;border-radius:4px;overflow:hidden;">
+              <div id="gmarketProgressBar" style="width:0%;height:100%;background:#059669;transition:width 0.4s;"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 탭 2: 다나와 실시간 최저가 수집 -->
+        <div id="tabDanawaContent" style="display:none;">
+          <p style="font-size:13px;color:#475569;margin-bottom:14px;line-height:1.5;">
+            상품들의 다나와 실시간 최저가와 카탈로그 링크를 모아와 마진율을 계산합니다.
+          </p>
+
+          <div style="margin-bottom:16px;">
+            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+              <label style="font-size:12.5px;cursor:pointer;display:flex;align-items:center;gap:5px;background:#f8fafc;padding:6px 12px;border-radius:6px;border:1px solid #cbd5e1;">
+                <input type="radio" name="crawlLimitRadio" value="20" checked> 상위 20개 (약 5초)
+              </label>
+              <label style="font-size:12.5px;cursor:pointer;display:flex;align-items:center;gap:5px;background:#f8fafc;padding:6px 12px;border-radius:6px;border:1px solid #cbd5e1;">
+                <input type="radio" name="crawlLimitRadio" value="50"> 상위 50개 (약 15초)
+              </label>
+              <label style="font-size:12.5px;cursor:pointer;display:flex;align-items:center;gap:5px;background:#f8fafc;padding:6px 12px;border-radius:6px;border:1px solid #cbd5e1;">
+                <input type="radio" name="crawlLimitRadio" value="100"> 전체 100개 (약 30초)
+              </label>
+            </div>
+          </div>
+
+          <div style="text-align:center;margin:18px 0;">
+            <button type="button" id="btnRunCrawler" class="btn btn-primary" onclick="startDanawaLiveCrawl()" style="background:#4338ca;font-weight:800;padding:12px 28px;font-size:14.5px;border-radius:8px;cursor:pointer;border:none;">
+              💎 다나와 최저가 수집 시작
+            </button>
+          </div>
+
+          <!-- 진행률 상태창 -->
+          <div id="crawlerProgressArea" style="display:none;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:12px;margin-top:12px;">
+            <div style="display:flex;justify-content:space-between;font-size:12px;font-weight:700;margin-bottom:6px;">
+              <span id="crawlerProgressText" style="color:#1e293b;">수집 준비 중...</span>
+              <span id="crawlerProgressPercent" style="color:#4338ca;">0%</span>
+            </div>
+            <div style="width:100%;height:8px;background:#e2e8f0;border-radius:4px;overflow:hidden;">
+              <div id="crawlerProgressBar" style="width:0%;height:100%;background:#4338ca;transition:width 0.3s;"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-footer" style="padding: 12px 20px; display:flex; justify-content:flex-end; align-items:center; background:#f8fafc; border-top:1px solid #e2e8f0;">
+        <button type="button" class="btn btn-secondary" onclick="closeCrawlerModal()">닫기</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ⚡ 실시간 플로팅 토스트 컨테이너 -->
+  <div class="radar-toast-container" id="radarToastContainer"></div>
+
+  <script src="sourcingRadar.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

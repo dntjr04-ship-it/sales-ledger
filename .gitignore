@@ -1,0 +1,10 @@
+node_modules
+.env
+*.log
+.vercel
+gmarket_dump.html
+gmarket_next_data.json
+gmarket_real_live_100.json
+test_*.js
+inspect_*.js
+find_radar.js

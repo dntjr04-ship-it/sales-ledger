@@ -1,0 +1,13 @@
+node_modules
+.git
+.agents
+.skills
+*.dump.html
+gmarket_dump.html
+gmarket_next_data.json
+gmarket_real_live_100.json
+test_*.js
+inspect_*.js
+*.log
+매출장부_서버실행.bat
+start_server_silent.vbs
