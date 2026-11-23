@@ -2691,6 +2691,7 @@ const SourcingRadarState = {
   countdownSeconds: 1800,
   countdownTimerId: null,
   notificationLogs: [],
+  unreadAlertCount: 0,
   audioEnabled: true
 };
 
@@ -3065,6 +3066,7 @@ async function loadLiveBestJson() {
           detailUrl: p.danawaDetailUrl
         };
         SourcingRadarState.notificationLogs.unshift(logEntry);
+        SourcingRadarState.unreadAlertCount = (SourcingRadarState.unreadAlertCount || 0) + 1;
       }
       return p;
     });
@@ -3088,6 +3090,7 @@ async function loadLiveBestJson() {
           detailUrl: p.danawaDetailUrl
         });
       });
+      SourcingRadarState.unreadAlertCount = topDeals.length;
     }
 
     const loadedKey = `${liveData.groupCode || '100000000'}_${liveData.subGroupCode || 'ALL'}`;
@@ -3356,7 +3359,7 @@ function showRadarToast(message) {
 }
 
 function updateAlertBadge() {
-  const count = SourcingRadarState.notificationLogs.length;
+  const count = SourcingRadarState.unreadAlertCount || 0;
   const badge = document.getElementById('radarAlertBadge');
   if (badge) {
     if (count > 0) {
@@ -3372,6 +3375,7 @@ function updateAlertBadge() {
       chip.textContent = `${count}`;
       chip.style.display = 'inline-block';
     } else {
+      chip.textContent = '0';
       chip.style.display = 'none';
     }
   }
@@ -3944,6 +3948,10 @@ function bridgeToOrderModal(rank) {
  * 알림 내역 모달 열기
  */
 function openRadarAlertModal() {
+  // 🔔 팝업 화면을 열면 미확인 알림 갯수 뱃지 즉시 초기화!
+  SourcingRadarState.unreadAlertCount = 0;
+  updateAlertBadge();
+
   const overlay = document.getElementById('radarAlertModalOverlay');
   const container = document.getElementById('radarAlertLogList');
   if (!overlay || !container) return;
