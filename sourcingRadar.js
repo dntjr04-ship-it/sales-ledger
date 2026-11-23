@@ -4227,6 +4227,58 @@ async function autoLoadCategoryBest100(groupCode, subCode, categoryLabel, forceR
     return;
   }
 
+  // 1-2. 🌟 [스마트 폴백] 캐시에 개별 소분류가 아직 없더라도, 상위 중분류 캐시(예: 가공식품)에서 해당 소분류 상품을 자동 필터링하여 0.001초 즉시 표시!
+  if (subCode && subCode !== 'ALL') {
+    const parentKey = `${groupCode}_ALL`;
+    const parentList = SourcingRadarState.categoryCache[parentKey] || (groupCode === '100000000' ? SourcingRadarState.products : null);
+    const groupInfo = GMARKET_CATEGORY_TREE[groupCode];
+    const subInfo = (groupInfo && Array.isArray(groupInfo.subGroups)) ? groupInfo.subGroups.find(s => s.code === subCode) : null;
+    
+    if (parentList && parentList.length > 0 && subInfo && subInfo.regex) {
+      const filtered = parentList.filter(p => subInfo.regex.test(p.name || ''));
+      if (filtered.length > 0) {
+        SourcingRadarState.categoryCache[cacheKey] = filtered;
+        SourcingRadarState.products = filtered;
+        SourcingRadarState.loadedCategoryKey = cacheKey;
+        renderSourcingRadar();
+        showRadarToast(`⚡ [${categoryLabel}] 키워드 매칭 상품 ${filtered.length}개를 즉시 불러왔습니다!`);
+        return;
+      }
+    }
+  }
+
+  // 1-3. ☁️ Supabase 클라우드에서 해당 카테고리가 있는지 직접 조회!
+  try {
+    const SUPABASE_URL = 'https://fmphjhykjlujpnjoyniq.supabase.co';
+    const SUPABASE_ANON_KEY = 'sb_publishable_XZcvcfoDRUWUtSPCEBK2MQ_ebnPPFvS';
+    const spRes = await fetch(`${SUPABASE_URL}/rest/v1/categories_cache?category_id=eq.${encodeURIComponent(cacheKey)}&select=*`, {
+      headers: {
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+      }
+    });
+    if (spRes.ok) {
+      const rows = await spRes.json();
+      if (Array.isArray(rows) && rows.length > 0 && Array.isArray(rows[0].products) && rows[0].products.length > 0) {
+        const built = rows[0].products.map(it => {
+          const p = buildSourcingPriceComparison(it);
+          p.isLiveCrawled = true;
+          p.liveCollectedAt = it.collectedAt || rows[0].updated_at;
+          return p;
+        });
+        SourcingRadarState.categoryCache[cacheKey] = built;
+        const activeKey = `${SourcingRadarState.selectedGroupCode || '100000000'}_${SourcingRadarState.selectedSubGroupCode || 'ALL'}`;
+        if (activeKey === cacheKey) {
+          SourcingRadarState.products = built;
+          SourcingRadarState.loadedCategoryKey = cacheKey;
+          renderSourcingRadar();
+        }
+        showRadarToast(`☁️ Supabase 클라우드에서 [${categoryLabel}] 100위를 불러왔습니다!`);
+        return;
+      }
+    }
+  } catch (spErr) {}
+
   // 2. 테이블에 자동 로딩 안내 표시 (별도 모달이나 추가 버튼 클릭 없이 즉시 자동 수집!)
   const container = document.getElementById('sourcingRadarTableBody');
   if (container) {
@@ -4306,25 +4358,46 @@ async function autoLoadCategoryBest100(groupCode, subCode, categoryLabel, forceR
       renderSourcingRadar();
     }
   } catch (err) {
-    console.warn('카테고리 자동 로드 알림(서버 꺼짐 감지):', err);
+    console.warn('카테고리 자동 로드 알림:', err);
     updateServerStatusBadge(false);
     if (container) {
-      container.innerHTML = `
-        <tr>
-          <td colspan="7" style="text-align:center;padding:48px 20px;color:#334155;background:#fff5f5;">
-            <div style="font-size:32px;margin-bottom:8px;">🔌</div>
-            <strong style="font-size:15px;color:#dc2626;">로컬 실시간 수집 서버가 꺼져 있어 [${categoryLabel}] 100위를 새로 가져올 수 없습니다.</strong><br>
-            <span style="font-size:12.5px;color:#64748b;margin-top:6px;display:inline-block;">
-              아래 버튼을 톡 누르시면 화면에서 바로 서버를 켜고 <strong>[${categoryLabel}] 1위~100위</strong>를 자동으로 불러옵니다!
-            </span>
-            <div style="margin-top:14px;">
-              <button type="button" onclick="handleOneClickServerConnect(true)" class="btn btn-primary" style="background:#dc2626;color:#fff;font-weight:800;border:none;padding:10px 22px;border-radius:8px;cursor:pointer;font-size:13.5px;box-shadow:0 3px 6px rgba(220,38,38,0.25);">
-                🔌 1클릭으로 서버 켜고 [${categoryLabel}] 바로 불러오기
-              </button>
-            </div>
-          </td>
-        </tr>
-      `;
+      const isCloudEnv = window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1';
+      const groupInfo = GMARKET_CATEGORY_TREE[groupCode];
+      if (isCloudEnv) {
+        container.innerHTML = `
+          <tr>
+            <td colspan="7" style="text-align:center;padding:52px 20px;color:#334155;background:#f8fafc;">
+              <div style="font-size:36px;margin-bottom:12px;">☁️</div>
+              <strong style="font-size:16px;color:#4f46e5;">[${categoryLabel}] 세부 카테고리는 클라우드 무인 로봇 정기 수집에 자동 반영됩니다!</strong><br>
+              <span style="font-size:13px;color:#64748b;margin-top:8px;display:inline-block;">
+                현재 상단의 <strong>[${groupInfo?.label || '전체'}] 전체 탭</strong>을 누르시면 준비된 수백 개의 인기 상품을 지금 바로 확인하실 수 있습니다!
+              </span>
+              <div style="margin-top:16px;">
+                <button type="button" onclick="selectGmarketMainCategory('${groupCode}', '${groupInfo?.label || '전체'}')" class="btn" style="background:#4f46e5;color:#fff;font-weight:700;padding:8px 20px;border-radius:8px;border:none;cursor:pointer;font-size:13px;box-shadow:0 2px 5px rgba(79,70,229,0.3);">
+                  👈 [${groupInfo?.label || '전체'}] 전체 보기로 이동
+                </button>
+              </div>
+            </td>
+          </tr>
+        `;
+      } else {
+        container.innerHTML = `
+          <tr>
+            <td colspan="7" style="text-align:center;padding:48px 20px;color:#334155;background:#fff5f5;">
+              <div style="font-size:32px;margin-bottom:8px;">🔌</div>
+              <strong style="font-size:15px;color:#dc2626;">로컬 실시간 수집 서버가 꺼져 있어 [${categoryLabel}] 100위를 새로 가져올 수 없습니다.</strong><br>
+              <span style="font-size:12.5px;color:#64748b;margin-top:6px;display:inline-block;">
+                아래 버튼을 톡 누르시면 화면에서 바로 서버를 켜고 <strong>[${categoryLabel}] 1위~100위</strong>를 자동으로 불러옵니다!
+              </span>
+              <div style="margin-top:14px;">
+                <button type="button" onclick="handleOneClickServerConnect(true)" class="btn btn-primary" style="background:#dc2626;color:#fff;font-weight:800;border:none;padding:10px 22px;border-radius:8px;cursor:pointer;font-size:13.5px;box-shadow:0 3px 6px rgba(220,38,38,0.25);">
+                  🔌 1클릭으로 서버 켜고 [${categoryLabel}] 바로 불러오기
+                </button>
+              </div>
+            </td>
+          </tr>
+        `;
+      }
     }
   } finally {
     if (fetchBtn) {
