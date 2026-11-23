@@ -1901,7 +1901,7 @@ function renderCardSettingsList() {
       <td><span class="badge" style="background:#eef2ff;color:#4f46e5;">${s.holder}</span></td>
       <td>매월 ${s.payDay}일</td>
       <td style="font-size:12px;">${s.billingDesc}</td>
-      <td style="font-size:12px;color:#475569;">${s.note || '-'}</td>
+      <td style="font-size:12.5px;color:#334155;white-space:pre-wrap;line-height:1.5;min-width:180px;">${s.note || '-'}</td>
       <td style="text-align:center;">
         <button class="btn btn-sm btn-secondary" onclick="editCardSetting('${s.id}')" style="padding:2px 6px;font-size:11px;margin-right:4px;">✏️수정</button>
         <button class="btn btn-sm btn-secondary" onclick="deleteCardSetting('${s.id}')" style="padding:2px 6px;font-size:11px;color:#dc2626;">🗑️삭제</button>
