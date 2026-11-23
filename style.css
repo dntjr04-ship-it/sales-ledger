@@ -668,13 +668,24 @@ body {
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  min-height: 160px;
+  min-height: 130px;
+  padding: 18px 20px;
+  transition: all 0.2s ease;
 }
 
-.card-credit-box.theme-kb { background: linear-gradient(135deg, #78350f, #b45309); }
+/* 명의자별 대표 색상 테마 */
+.card-credit-box.theme-blue,
 .card-credit-box.theme-samsung { background: linear-gradient(135deg, #1e3a8a, #2563eb); }
+.card-credit-box.theme-emerald,
 .card-credit-box.theme-woori { background: linear-gradient(135deg, #065f46, #059669); }
-.card-credit-box.theme-smile { background: linear-gradient(135deg, #831843, #be185d); }
+.card-credit-box.theme-purple,
+.card-credit-box.theme-smile { background: linear-gradient(135deg, #581c87, #7c3aed); }
+.card-credit-box.theme-amber,
+.card-credit-box.theme-kb { background: linear-gradient(135deg, #78350f, #d97706); }
+.card-credit-box.theme-rose { background: linear-gradient(135deg, #9f1239, #e11d48); }
+.card-credit-box.theme-teal { background: linear-gradient(135deg, #134e4a, #0d9488); }
+.card-credit-box.theme-slate { background: linear-gradient(135deg, #1e293b, #475569); }
+.card-credit-box.theme-indigo { background: linear-gradient(135deg, #312e81, #4f46e5); }
 
 .credit-box-top {
   display: flex;
@@ -1662,7 +1673,7 @@ body {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 8px;
-  margin: 12px 0 10px;
+  margin: 10px 0 0;
   background: rgba(0, 0, 0, 0.22);
   padding: 10px 12px;
   border-radius: 8px;

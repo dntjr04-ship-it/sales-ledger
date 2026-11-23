@@ -16,10 +16,10 @@ const AppState = {
 
   // 1. 카드사 결제일 & 청구기간 관리
   cardSettings: [
-    { id: 'card_kb_a', name: '국민카드', holder: '강우석', payDay: 14, billingStartDay: 1, billingEndDay: 31, billingDesc: '전월 1일 ~ 전월 말일', theme: 'theme-kb', note: '소싱처(G마켓, 11번가) 전용, 실적 30만 이상 2% 캐시백' },
-    { id: 'card_samsung_a', name: '삼성카드', holder: '강우석', payDay: 25, billingStartDay: 14, billingEndDay: 13, billingDesc: '전전월 14일 ~ 전월 13일', theme: 'theme-samsung', note: '쿠팡 로켓소싱 전용, 무조건 1.2% 포인트' },
-    { id: 'card_woori_b', name: '우리카드', holder: '강우석', payDay: 14, billingStartDay: 1, billingEndDay: 31, billingDesc: '전월 1일 ~ 전월 말일', theme: 'theme-woori', note: '스마트스토어 결제용, 무이자 6개월 할부 혜택' },
-    { id: 'card_smile_b', name: '스마일카드 Edition3', holder: 'tjrdnrkd', payDay: 10, billingStartDay: 28, billingEndDay: 27, billingDesc: '전전월 28일 ~ 전월 27일', theme: 'theme-smile', note: 'G마켓/옥션 2% 스마일캐시 적립' }
+    { id: 'card_kb_a', name: '국민카드', holder: '강우석', payDay: 14, billingStartDay: 1, billingEndDay: 31, billingDesc: '전월 1일 ~ 전월 말일', theme: 'theme-blue', note: '소싱처(G마켓, 11번가) 전용, 실적 30만 이상 2% 캐시백' },
+    { id: 'card_samsung_a', name: '삼성카드', holder: '강우석', payDay: 25, billingStartDay: 14, billingEndDay: 13, billingDesc: '전전월 14일 ~ 전월 13일', theme: 'theme-blue', note: '쿠팡 로켓소싱 전용, 무조건 1.2% 포인트' },
+    { id: 'card_woori_b', name: '우리카드', holder: '강우석', payDay: 14, billingStartDay: 1, billingEndDay: 31, billingDesc: '전월 1일 ~ 전월 말일', theme: 'theme-blue', note: '스마트스토어 결제용, 무이자 6개월 할부 혜택' },
+    { id: 'card_smile_b', name: '스마일카드 Edition3', holder: 'tjrdnrkd', payDay: 10, billingStartDay: 28, billingEndDay: 27, billingDesc: '전전월 28일 ~ 전월 27일', theme: 'theme-emerald', note: 'G마켓/옥션 2% 스마일캐시 적립' }
   ],
   selectedCardKey: null,
   selectedCardTxTab: 'ALL', // 'ALL', 'CURRENT', 'NEXT'
@@ -1535,6 +1535,38 @@ function calcCardBillingSplit(orderDateStr, cardSetting) {
   }
 }
 
+// 명의자별 대표 색상 맵 (명의자별로 일관된 색상 부여)
+const HOLDER_THEME_MAP = {
+  '강우석': 'theme-blue',
+  'tjrdnrkd': 'theme-emerald',
+  '리사': 'theme-purple'
+};
+
+function getHolderTheme(holder, fallbackTheme) {
+  if (!holder || holder === '명의미지정') return 'theme-slate';
+  if (HOLDER_THEME_MAP[holder]) return HOLDER_THEME_MAP[holder];
+
+  if (fallbackTheme && fallbackTheme.startsWith('theme-')) {
+    HOLDER_THEME_MAP[holder] = fallbackTheme;
+    return fallbackTheme;
+  }
+
+  const found = AppState.cardSettings.find(s => s.holder === holder && s.theme);
+  if (found && found.theme) {
+    HOLDER_THEME_MAP[holder] = found.theme;
+    return found.theme;
+  }
+
+  const palette = ['theme-blue', 'theme-emerald', 'theme-purple', 'theme-amber', 'theme-rose', 'theme-teal', 'theme-indigo', 'theme-slate'];
+  let hash = 0;
+  for (let i = 0; i < holder.length; i++) {
+    hash = holder.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  const assigned = palette[Math.abs(hash) % palette.length];
+  HOLDER_THEME_MAP[holder] = assigned;
+  return assigned;
+}
+
 function renderCardsView() {
   const grid = document.getElementById('cardsDetailGrid');
   const tbody = document.getElementById('cardTransactionsTableBody');
@@ -1545,13 +1577,14 @@ function renderCardsView() {
   // 1. 등록된 카드 세팅 기반으로 기본 맵 구성
   AppState.cardSettings.forEach(s => {
     const cardKey = s.holder ? `${s.name} (${s.holder})` : s.name;
+    const theme = getHolderTheme(s.holder, s.theme);
     cardMap[cardKey] = {
       name: s.name,
       holder: s.holder || '명의미지정',
       displayName: cardKey,
       payDay: s.payDay || 14,
       billingDesc: s.billingDesc || '전월 1일 ~ 전월 말일',
-      theme: s.theme || 'theme-samsung',
+      theme: theme,
       note: s.note || '',
       settingId: s.id,
       total: 0,
@@ -1567,13 +1600,14 @@ function renderCardsView() {
     if (o.paymentCard && o.purchaseCost > 0) {
       const cardKey = o.cardHolder ? `${o.paymentCard} (${o.cardHolder})` : o.paymentCard;
       if (!cardMap[cardKey]) {
+        const theme = getHolderTheme(o.cardHolder);
         cardMap[cardKey] = {
           name: o.paymentCard,
           holder: o.cardHolder || '명의미지정',
           displayName: cardKey,
           payDay: 14,
           billingDesc: '전월 1일 ~ 전월 말일',
-          theme: 'theme-samsung',
+          theme: theme,
           note: '',
           settingId: null,
           total: 0,
@@ -1599,27 +1633,25 @@ function renderCardsView() {
 
   const cards = Object.values(cardMap);
 
-  // 3. 카드 그리드 렌더링
+  // 3. 카드 그리드 렌더링 (불필요한 누적/주요처/비고 제거 & 명의자별 통일 테마 적용 ⭐)
   if (grid) {
     if (cards.length === 0) {
       grid.innerHTML = '<div style="padding:30px;color:#94a3b8;">등록되거나 사용된 결제 카드가 없습니다.</div>';
     } else {
       grid.innerHTML = cards.map(c => {
-        let theme = c.theme || 'theme-samsung';
-        if (c.name.includes('국민')) theme = 'theme-kb';
-        else if (c.name.includes('우리')) theme = 'theme-woori';
-        else if (c.name.includes('스마일')) theme = 'theme-smile';
-
+        const theme = getHolderTheme(c.holder, c.theme);
         const isSelected = AppState.selectedCardKey === c.displayName;
 
         return `
-          <div class="card-credit-box ${theme} ${isSelected ? 'selected' : ''}" onclick="selectCard('${c.displayName}')" title="클릭하시면 이 카드의 결제 내역만 아래에 나타납니다">
+          <div class="card-credit-box ${theme} ${isSelected ? 'selected' : ''}" 
+               onclick="selectCard('${c.displayName}')" 
+               title="${c.displayName} (클릭하시면 아래에 상세 결제 내역이 표시됩니다)${c.note ? ' - [비고] ' + c.note : ''}">
             <div class="credit-box-top">
               <div>
                 <div class="credit-box-name">${c.name}</div>
                 <div style="font-size:12px;opacity:0.95;margin-top:2px;">
                   명의자: <strong>${c.holder}</strong>
-                  <span style="margin-left:6px;font-size:11px;background:rgba(255,255,255,0.2);padding:1px 6px;border-radius:4px;">
+                  <span style="margin-left:6px;font-size:11px;background:rgba(255,255,255,0.22);padding:1px 6px;border-radius:4px;">
                     매월 ${c.payDay}일 결제
                   </span>
                 </div>
@@ -1645,17 +1677,6 @@ function renderCardsView() {
                 <span class="due-val">${formatKRW(c.nextDue)}</span>
               </div>
             </div>
-
-            <div class="credit-box-bot">
-              <span>총 ${c.count}건 (누적 ${formatKRW(c.total)})</span>
-              <span>주요처: ${Array.from(c.platforms).slice(0, 2).join(', ') || '-'}</span>
-            </div>
-
-            ${c.note ? `
-              <div class="credit-box-note" title="카드 특징/비고">
-                📝 ${c.note}
-              </div>
-            ` : ''}
           </div>
         `;
       }).join('');
@@ -1798,7 +1819,7 @@ function resetCardForm() {
   if (holderEl) holderEl.value = '';
   if (payDayEl) payDayEl.value = '14';
   if (descEl) descEl.value = '전월 1일 ~ 전월 말일';
-  if (themeEl) themeEl.value = 'theme-samsung';
+  if (themeEl) themeEl.value = 'theme-blue';
   if (noteEl) noteEl.value = '';
   if (titleEl) titleEl.textContent = '+ 카드사 기본정보 신규 등록';
 }
@@ -1854,11 +1875,21 @@ function saveCardSetting() {
     AppState.cardSettings.push({ id: newId, name, holder, payDay, billingDesc, theme, note });
   }
 
+  // 명의자별 대표 테마 맵 갱신 및 동일 명의자의 모든 등록 카드 테마 일괄 통일!
+  if (holder) {
+    HOLDER_THEME_MAP[holder] = theme;
+    AppState.cardSettings.forEach(s => {
+      if (s.holder === holder) {
+        s.theme = theme;
+      }
+    });
+  }
+
   saveStateToStorage();
   resetCardForm();
   renderCardSettingsList();
   renderCardsView();
-  alert('카드사 기본정보가 안전하게 저장되었습니다!');
+  alert(`[${holder}] 명의자의 카드 테마가 안전하게 저장되었습니다!`);
 }
 
 function editCardSetting(id) {
@@ -1870,7 +1901,8 @@ function editCardSetting(id) {
   document.getElementById('formCardHolder').value = s.holder;
   document.getElementById('formCardPayDay').value = s.payDay || 14;
   document.getElementById('formCardBillingDesc').value = s.billingDesc || '전월 1일 ~ 전월 말일';
-  document.getElementById('formCardTheme').value = s.theme || 'theme-samsung';
+  const currentTheme = getHolderTheme(s.holder, s.theme);
+  document.getElementById('formCardTheme').value = currentTheme || 'theme-blue';
   document.getElementById('formCardNote').value = s.note || '';
 
   const titleEl = document.getElementById('cardFormTitle');
