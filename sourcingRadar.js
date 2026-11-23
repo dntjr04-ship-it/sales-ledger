@@ -2747,9 +2747,11 @@ function buildSourcingPriceComparison(baseProduct) {
   const userGmarketPrices = typeof localStorage !== 'undefined' ? JSON.parse(localStorage.getItem('RADAR_USER_GMARKET_PRICES') || '{}') : {};
   const userDanawaPrices = typeof localStorage !== 'undefined' ? JSON.parse(localStorage.getItem('RADAR_USER_DANAWA_PRICES') || '{}') : {};
   const userKeywords = typeof localStorage !== 'undefined' ? JSON.parse(localStorage.getItem('RADAR_USER_KEYWORDS') || '{}') : {};
+  const userDetailUrls = typeof localStorage !== 'undefined' ? JSON.parse(localStorage.getItem('RADAR_USER_DANAWA_URLS') || '{}') : {};
   const legacyUserPrices = typeof localStorage !== 'undefined' ? JSON.parse(localStorage.getItem('RADAR_USER_PRICES') || '{}') : {};
 
-  const cleanKw = userKeywords[baseProduct.rank] || baseProduct.cleanKeyword || cleanSearchKeyword(baseProduct.name);
+  const userCustomKw = userKeywords[baseProduct.rank];
+  const cleanKw = userCustomKw || baseProduct.cleanKeyword || cleanSearchKeyword(baseProduct.name);
   const gPrice = userGmarketPrices[baseProduct.rank] || baseProduct.gmarketPrice;
   const gmarketUrl = baseProduct.gmarketUrl || (baseProduct.goodsCode ? `https://item.gmarket.co.kr/Item?goodscode=${baseProduct.goodsCode}` : `https://www.gmarket.co.kr/n/search?keyword=${encodeURIComponent(cleanKw)}`);
 
@@ -2757,12 +2759,29 @@ function buildSourcingPriceComparison(baseProduct) {
   // 1. 지마켓 검색어로 다나와 실시간 가격비교 화면 열기
   const danawaSearchUrl = `https://search.danawa.com/dsearch.php?query=${encodeURIComponent(cleanKw)}`;
   // 2. 다나와에서 검색된 최저가 상세 링크 (1:1 카탈로그가 있으면 카탈로그, 없으면 검색결과 링크)
-  let danawaDetailUrl = (baseProduct.danawaDetailUrl && baseProduct.danawaDetailUrl.includes('prod.danawa.com'))
-    ? baseProduct.danawaDetailUrl
-    : ((baseProduct.danawaUrl && baseProduct.danawaUrl.includes('prod.danawa.com'))
-      ? baseProduct.danawaUrl
-      : (baseProduct.lowestUrl && baseProduct.lowestUrl.includes('prod.danawa.com') ? baseProduct.lowestUrl : danawaSearchUrl));
-  const isDanawaDirect = Boolean(danawaDetailUrl && danawaDetailUrl.includes('prod.danawa.com'));
+  // 중요: 사용자가 검색어를 수정한 경우 예전 pcode 링크는 무효이므로, 수동 링크가 없다면 새 검색결과로 즉시 연결!
+  let danawaDetailUrl;
+  let isDanawaDirect = false;
+
+  if (userDetailUrls[baseProduct.rank]) {
+    danawaDetailUrl = userDetailUrls[baseProduct.rank];
+    isDanawaDirect = danawaDetailUrl.includes('prod.danawa.com');
+  } else if (userCustomKw && userCustomKw !== baseProduct.cleanKeyword) {
+    danawaDetailUrl = danawaSearchUrl;
+    isDanawaDirect = false;
+  } else if (baseProduct.danawaDetailUrl && baseProduct.danawaDetailUrl.includes('prod.danawa.com')) {
+    danawaDetailUrl = baseProduct.danawaDetailUrl;
+    isDanawaDirect = true;
+  } else if (baseProduct.danawaUrl && baseProduct.danawaUrl.includes('prod.danawa.com')) {
+    danawaDetailUrl = baseProduct.danawaUrl;
+    isDanawaDirect = true;
+  } else if (baseProduct.lowestUrl && baseProduct.lowestUrl.includes('prod.danawa.com')) {
+    danawaDetailUrl = baseProduct.lowestUrl;
+    isDanawaDirect = true;
+  } else {
+    danawaDetailUrl = danawaSearchUrl;
+    isDanawaDirect = false;
+  }
 
   // 다나와 최저가 산출
   let danawaPrice;
@@ -3837,11 +3856,16 @@ function promptEditRadarKeyword(rank) {
     return;
   }
 
-  // 1. 사용자 커스텀 검색어 영구 저장
+  // 1. 사용자 커스텀 검색어 영구 저장 및 이전 수동 URL 초기화
   const userKeywords = typeof localStorage !== 'undefined' ? JSON.parse(localStorage.getItem('RADAR_USER_KEYWORDS') || '{}') : {};
   userKeywords[rank] = clean;
   if (typeof localStorage !== 'undefined') {
     localStorage.setItem('RADAR_USER_KEYWORDS', JSON.stringify(userKeywords));
+    const userUrls = JSON.parse(localStorage.getItem('RADAR_USER_DANAWA_URLS') || '{}');
+    if (userUrls[rank]) {
+      delete userUrls[rank];
+      localStorage.setItem('RADAR_USER_DANAWA_URLS', JSON.stringify(userUrls));
+    }
   }
 
   // 2. 검색어 및 다나와 2대 링크 즉시 재구성 (수정된 검색어로 100% 즉시 반영!)

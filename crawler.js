@@ -126,20 +126,47 @@ function parseDanawaLi(liHtml) {
   };
 }
 
+const CORE_NOUNS = [
+  '치약', '칫솔', '치실', '기저귀', '패드', '생리대', '팬티', '오버나이트', '탐폰',
+  '물티슈', '세제', '섬유유연제', '비누', '샴푸', '린스', '트리트먼트', '바디워시',
+  '면도날', '면도기', '가글', '구강청결제', '호빵', '라면', '만두', '커피', '생수',
+  '음료', '과자', '초콜릿', '비타민', '영양제', '유산균', '햇반', '참치', '스팸', '화장지', '휴지'
+];
+
 function isTitleRelevant(candidateTitle, keyword) {
   if (!candidateTitle || !keyword) return true;
   const cleanTitle = candidateTitle.toLowerCase().replace(/\s+/g, '');
-  const kwTokens = keyword
-    .toLowerCase()
+  const cleanKw = keyword.toLowerCase();
+
+  // 1. 핵심 품목 명사 상호 배제 및 필수 일치 검사
+  // (예: 지마켓 상품이 '치약'인데 다나와 후보가 '칫솔'인 경우 엄격 차단!)
+  for (const noun of CORE_NOUNS) {
+    if (cleanKw.includes(noun)) {
+      if (noun === '치약' && cleanTitle.includes('칫솔') && !cleanTitle.includes('치약')) return false;
+      if (noun === '칫솔' && cleanTitle.includes('치약') && !cleanTitle.includes('칫솔')) return false;
+      if (noun === '면도날' && !cleanTitle.includes('면도날') && !cleanTitle.includes('날')) return false;
+      if (noun === '기저귀' && !cleanTitle.includes('기저귀') && !cleanTitle.includes('패드')) return false;
+      if (noun === '생리대' && !cleanTitle.includes('생리대') && !cleanTitle.includes('팬티') && !cleanTitle.includes('패드') && !cleanTitle.includes('오버나이트') && !cleanTitle.includes('탐폰')) return false;
+      if (!cleanTitle.includes(noun) && !['기저귀', '생리대', '면도날'].includes(noun)) {
+        // 해당 핵심 품목 명사가 후보 제목에 없으면 다른 품목일 확률이 높으므로 탈락
+        return false;
+      }
+    }
+  }
+
+  const kwTokens = cleanKw
     .replace(/\d+(?:kg|g|ml|l|t|매|롤|캔|봉|병|팩|개|구|마리|미|박스|정|포|종|원|만원권)/gi, ' ')
     .split(/\s+/)
-    .filter(w => w.length >= 2 && !['무조건', '첫출하', '세일', '특가', '당일발송', '신선집중', '인기', '베스트', '모음', '세트'].includes(w));
+    .filter(w => w.length >= 2 && !['무조건', '첫출하', '세일', '특가', '당일발송', '신선집중', '인기', '베스트', '모음', '세트', '토탈케어', '올인원'].includes(w));
 
-  if (kwTokens.length === 0) return false;
+  if (kwTokens.length === 0) return true;
   return kwTokens.some(token => cleanTitle.includes(token));
 }
 
 function getFallbackTwoWordQueries(keyword) {
+  const kwLower = (keyword || '').toLowerCase();
+  const matchedNoun = CORE_NOUNS.find(n => kwLower.includes(n));
+
   const words = (keyword || '')
     .replace(/\d+(?:kg|g|ml|L|T|매|롤|캔|봉|병|팩|개|구|마리|미|박스|정|포|원권|만원권)/gi, ' ')
     .replace(/\s+/g, ' ')
@@ -149,6 +176,13 @@ function getFallbackTwoWordQueries(keyword) {
 
   const fallbacks = [];
   if (words.length >= 2) {
+    if (matchedNoun) {
+      // 핵심 품목(예: 치약)이 있으면 브랜드 + 품목 조합을 최우선 폴백으로 등록!
+      fallbacks.push(`${words[0]} ${matchedNoun}`);
+      if (words.length >= 3 && words[1] !== matchedNoun) {
+        fallbacks.push(`${words[0]} ${words[1]} ${matchedNoun}`);
+      }
+    }
     fallbacks.push(words.slice(0, 2).join(' '));
     fallbacks.push(words.slice(-2).join(' '));
   }
