@@ -33,9 +33,11 @@ const AppState = {
 
   // 2-B. 통장 거래내역 (입출금 장부)
   bankTransactions: [
-    { id: 101, accountId: 1, bankName: '기업은행', accountName: '기업은행 (주거래 통장)', accountNum: '010-8829-1234', date: '2026-11-15 10:30', type: '입금', amount: 3500000, balanceAfter: 14500000, summary: '스마트스토어 11월 1차 정산금 입금', note: '네이버페이' },
-    { id: 102, accountId: 2, bankName: '국민은행', accountName: '국민은행 (스마트스토어 전용)', accountNum: '421002-01-9988', date: '2026-11-14 14:00', type: '출금', amount: 1250000, balanceAfter: 8200000, summary: '국민카드 11월 결제대금 출금', note: '자동이체' },
-    { id: 103, accountId: 3, bankName: '신한은행', accountName: '신한은행 (쿠팡/올웨이즈 전용)', accountNum: '110-345-678901', date: '2026-11-10 11:20', type: '입금', amount: 2100000, balanceAfter: 11300000, summary: '쿠팡 11월 주정산금 입금', note: '쿠팡 윙' }
+    { id: 101, accountId: 1, bankName: '기업은행', accountName: '기업은행 (주거래 통장)', accountNum: '010-8829-1234', date: '2026-11-15 10:30', type: '입금', amount: 45000, balanceAfter: 14500000, summary: '스마트스토어 11월 1차 정산금 입금', note: '네이버페이', targetMarket: '스마트스토어' },
+    { id: 102, accountId: 2, bankName: '국민은행', accountName: '국민은행 (스마트스토어 전용)', accountNum: '421002-01-9988', date: '2026-11-14 14:00', type: '출금', amount: 1250000, balanceAfter: 8200000, summary: '국민카드 11월 결제대금 출금', note: '자동이체', targetMarket: 'NONE' },
+    { id: 103, accountId: 3, bankName: '신한은행', accountName: '신한은행 (쿠팡/올웨이즈 전용)', accountNum: '110-345-678901', date: '2026-11-10 11:20', type: '입금', amount: 320000, balanceAfter: 11300000, summary: '쿠팡 11월 주정산금 입금', note: '쿠팡 윙', targetMarket: '쿠팡(신)' },
+    { id: 104, accountId: 1, bankName: '기업은행', accountName: '기업은행 (주거래 통장)', accountNum: '010-8829-1234', date: '2026-11-08 14:10', type: '입금', amount: 120000, balanceAfter: 11000000, summary: 'G마켓 11월 정산금 입금', note: '지마켓글로벌', targetMarket: 'G마켓' },
+    { id: 105, accountId: 3, bankName: '신한은행', accountName: '신한은행 (쿠팡/올웨이즈 전용)', accountNum: '110-345-678901', date: '2026-11-05 09:30', type: '입금', amount: 50000, balanceAfter: 10950000, summary: '올웨이즈 1차 정산 입금', note: '레비잇', targetMarket: '올웨이즈' }
   ],
 
   // 3. 판매처별 기입금 완료 내역
@@ -1943,18 +1945,104 @@ function renderCardSettingsList() {
 }
 
 /**
- * 4. 정산 미수금 & 통장 관리
+ * 알려진 판매처 목록 반환 헬퍼
+ */
+function getKnownMarketsList() {
+  const set = new Set(['스마트스토어', '쿠팡(신)', '11번가', 'G마켓', '옥션', '올웨이즈', '카카오 톡스토어']);
+  AppState.rawOrders.forEach(o => {
+    if (o.market) set.add(o.market);
+  });
+  return Array.from(set);
+}
+
+/**
+ * 은행 거래내역 적요/비고에서 정산 판매처명 자동 탐색 감지
+ */
+function detectMarketFromText(text) {
+  if (!text) return null;
+  const clean = text.toLowerCase().replace(/\s+/g, '');
+  if (clean.includes('스마트스토어') || clean.includes('네이버페이') || clean.includes('네이버정산') || clean.includes('스토어정산')) {
+    return '스마트스토어';
+  }
+  if (clean.includes('쿠팡')) {
+    return '쿠팡(신)';
+  }
+  if (clean.includes('11번가') || clean.includes('십일번가') || clean.includes('일레븐')) {
+    return '11번가';
+  }
+  if (clean.includes('g마켓') || clean.includes('지마켓') || clean.includes('이베이') || clean.includes('gmarket')) {
+    return 'G마켓';
+  }
+  if (clean.includes('옥션') || clean.includes('auction')) {
+    return '옥션';
+  }
+  if (clean.includes('올웨이즈') || clean.includes('alwayz') || clean.includes('레비잇')) {
+    return '올웨이즈';
+  }
+  if (clean.includes('카카오') || clean.includes('톡스토어')) {
+    return '카카오 톡스토어';
+  }
+  if (clean.includes('롯데온') || clean.includes('lotteon')) {
+    return '롯데온';
+  }
+  if (clean.includes('인터파크')) {
+    return '인터파크';
+  }
+
+  const known = getKnownMarketsList();
+  for (const m of known) {
+    const mClean = m.toLowerCase().replace(/\s+/g, '');
+    if (clean.includes(mClean)) return m;
+  }
+  return null;
+}
+
+/**
+ * ⭐ 통장 거래내역(bankTransactions)을 참조하여 판매처별 기입금 완료액과 입금 건수 집계
+ */
+function getMarketDepositsFromBank() {
+  const marketMap = {}; // { [market]: { total: number, count: number, txList: [] } }
+  let totalSettlementDeposited = 0;
+
+  AppState.bankTransactions.forEach(tx => {
+    if (tx.type === '입금' && tx.amount > 0) {
+      let m = tx.targetMarket;
+      if (!m || m === 'AUTO') {
+        m = detectMarketFromText((tx.summary || '') + ' ' + (tx.note || ''));
+      }
+
+      if (m && m !== 'NONE') {
+        if (m === '쿠팡') m = '쿠팡(신)';
+
+        if (!marketMap[m]) {
+          marketMap[m] = { total: 0, count: 0, txList: [] };
+        }
+        marketMap[m].total += tx.amount;
+        marketMap[m].count += 1;
+        marketMap[m].txList.push(tx);
+        totalSettlementDeposited += tx.amount;
+      }
+    }
+  });
+
+  return { marketMap, totalSettlementDeposited };
+}
+
+/**
+ * 4. 정산 미수금 & 통장 관리 (⭐ 통장 입출금 내역과 100% 실시간 연동!)
  */
 function renderSettlementView() {
   const countableOrders = getCountableOrders();
+  const bankDeposits = getMarketDepositsFromBank();
 
   const marketMap = {};
   let totalDue = 0;
 
+  // 1. 주문장 기준 완료된 주문들의 판매처별 매출 기준가(정산예정액) 집계
   countableOrders.forEach(o => {
     if (o.market && o.totalSales > 0) {
       if (!marketMap[o.market]) {
-        marketMap[o.market] = { market: o.market, due: 0 };
+        marketMap[o.market] = { market: o.market, due: 0, deposited: 0, depositCount: 0 };
       }
       const settleAmt = (o.actualSettlement > 0) ? o.actualSettlement : o.standardPrice;
       marketMap[o.market].due += settleAmt;
@@ -1962,12 +2050,21 @@ function renderSettlementView() {
     }
   });
 
+  // 2. ⭐ 통장 거래내역에서 집계된 판매처별 입금액을 1:1 매핑
+  Object.keys(bankDeposits.marketMap).forEach(m => {
+    if (!marketMap[m]) {
+      marketMap[m] = { market: m, due: 0, deposited: 0, depositCount: 0 };
+    }
+    marketMap[m].deposited = bankDeposits.marketMap[m].total;
+    marketMap[m].depositCount = bankDeposits.marketMap[m].count;
+  });
+
+  // 3. 각 마켓별 남은 미수금 및 총 입금완료액 계산
   let totalDeposited = 0;
   Object.keys(marketMap).forEach(m => {
-    const dep = AppState.marketSettlements[m] || 0;
-    marketMap[m].deposited = dep;
-    marketMap[m].receivable = Math.max(0, marketMap[m].due - dep);
-    totalDeposited += dep;
+    const entry = marketMap[m];
+    entry.receivable = Math.max(0, entry.due - entry.deposited);
+    totalDeposited += entry.deposited;
   });
 
   const totalReceivable = Math.max(0, totalDue - totalDeposited);
@@ -1991,19 +2088,45 @@ function renderSettlementView() {
 
   const tbody = document.getElementById('marketReceivablesTableBody');
   if (tbody) {
-    tbody.innerHTML = Object.values(marketMap).map(m => `
-      <tr>
-        <td><strong>${m.market}</strong></td>
-        <td>${formatKRW(m.due)}</td>
-        <td class="text-success">${formatKRW(m.deposited)}</td>
-        <td><strong class="text-danger">${formatKRW(m.receivable)}</strong></td>
-        <td>
-          <span class="badge" style="background:${m.receivable === 0 ? '#ecfdf5' : '#fffbeb'};color:${m.receivable === 0 ? '#059669' : '#d97706'}">
-            ${m.receivable === 0 ? '정산완료' : '미수금 발생'}
-          </span>
-        </td>
-      </tr>
-    `).join('');
+    const list = Object.values(marketMap);
+    if (list.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:24px;color:#94a3b8;">정산 집계할 판매처 데이터가 없습니다.</td></tr>';
+    } else {
+      tbody.innerHTML = list.map(m => {
+        const isCompleted = m.receivable === 0 && m.due > 0;
+        const isPartial = m.deposited > 0 && m.receivable > 0;
+        const isNone = m.deposited === 0 && m.due > 0;
+
+        let statusBadge = '';
+        if (isCompleted) {
+          statusBadge = '<span class="badge" style="background:#ecfdf5;color:#059669;font-weight:700;">🟢 정산완료</span>';
+        } else if (isPartial) {
+          statusBadge = `<span class="badge" style="background:#eff6ff;color:#1d4ed8;font-weight:700;">🔵 부분입금 (${Math.round((m.deposited / m.due) * 100)}%)</span>`;
+        } else if (isNone) {
+          statusBadge = '<span class="badge" style="background:#fff7ed;color:#ea580c;font-weight:700;">🔴 미수금 발생</span>';
+        } else {
+          statusBadge = '<span class="badge" style="background:#f1f5f9;color:#64748b;">-</span>';
+        }
+
+        return `
+          <tr>
+            <td><strong>${m.market}</strong></td>
+            <td style="text-align:right;">${formatKRW(m.due)}</td>
+            <td style="text-align:right;">
+              <strong class="text-success">${formatKRW(m.deposited)}</strong>
+              ${m.depositCount > 0 ? `<div style="font-size:11px;color:#059669;font-weight:600;">(통장 ${m.depositCount}건 입금)</div>` : ''}
+            </td>
+            <td style="text-align:right;"><strong class="text-danger">${formatKRW(m.receivable)}</strong></td>
+            <td style="text-align:center;">${statusBadge}</td>
+            <td style="text-align:center;">
+              <button class="btn btn-sm btn-secondary" onclick="filterBankTxByMarket('${m.market}')" style="font-size:11px;padding:3px 8px;" title="이 판매처의 통장 입금내역 필터링">
+                🔍 통장내역 (${m.depositCount}건)
+              </button>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
   }
 
   // 등록 통장 카드 목록 렌더링
@@ -2042,6 +2165,16 @@ function renderSettlementView() {
     filterAcc.innerHTML = '<option value="ALL">모든 등록 통장</option>' + 
       AppState.bankAccounts.map(b => `<option value="${b.id}">${b.bankName || ''} - ${b.accountName || b.name} (${b.accountNum})</option>`).join('');
     if (curVal) filterAcc.value = curVal;
+  }
+
+  // 필터 정산 판매처 셀렉트박스 옵션 동기화
+  const filterMkt = document.getElementById('bankTxFilterMarket');
+  if (filterMkt) {
+    const curVal = filterMkt.value;
+    const markets = getKnownMarketsList();
+    filterMkt.innerHTML = '<option value="ALL">모든 정산 판매처</option>' + 
+      markets.map(m => `<option value="${m}">${m} 정산 입금만</option>`).join('');
+    if (curVal) filterMkt.value = curVal;
   }
 
   // 통장 입출금 거래내역 장부 렌더링 동기화
@@ -2164,8 +2297,11 @@ function renderBankTxTable() {
 
   const filterAcc = document.getElementById('bankTxFilterAccount');
   const filterType = document.getElementById('bankTxFilterType');
+  const filterMkt = document.getElementById('bankTxFilterMarket');
+
   const selectedAccId = filterAcc ? filterAcc.value : 'ALL';
   const selectedType = filterType ? filterType.value : 'ALL';
+  const selectedMkt = filterMkt ? filterMkt.value : 'ALL';
 
   let list = [...AppState.bankTransactions];
 
@@ -2177,6 +2313,18 @@ function renderBankTxTable() {
     list = list.filter(tx => tx.type === selectedType);
   }
 
+  if (selectedMkt !== 'ALL') {
+    list = list.filter(tx => {
+      if (tx.type !== '입금') return false;
+      let m = tx.targetMarket;
+      if (!m || m === 'AUTO') {
+        m = detectMarketFromText((tx.summary || '') + ' ' + (tx.note || ''));
+      }
+      if (m === '쿠팡') m = '쿠팡(신)';
+      return m === selectedMkt;
+    });
+  }
+
   // 최신 거래일시 순 정렬
   list.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
 
@@ -2185,12 +2333,19 @@ function renderBankTxTable() {
   }
 
   if (list.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:30px;color:#94a3b8;">등록된 입출금 거래내역이 없습니다. [✍️ 거래내역 직접입력] 또는 [📥 통장 엑셀 업로드]로 내역을 등록해보세요!</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:30px;color:#94a3b8;">해당 조건의 입출금 거래내역이 없습니다. [✍️ 거래내역 직접입력] 또는 [📥 통장 엑셀 업로드]로 내역을 등록해보세요!</td></tr>';
     return;
   }
 
   tbody.innerHTML = list.map(tx => {
     const isDeposit = (tx.type === '입금');
+    let matchedMarket = tx.targetMarket;
+    if (!matchedMarket || matchedMarket === 'AUTO') {
+      matchedMarket = detectMarketFromText((tx.summary || '') + ' ' + (tx.note || ''));
+    }
+    if (matchedMarket === '쿠팡') matchedMarket = '쿠팡(신)';
+    const hasMarket = isDeposit && matchedMarket && matchedMarket !== 'NONE';
+
     return `
       <tr>
         <td style="font-size:12px;color:#334155;font-weight:600;">${tx.date || '-'}</td>
@@ -2211,16 +2366,35 @@ function renderBankTxTable() {
         <td style="text-align:right;color:#1e40af;font-weight:700;">
           ${tx.balanceAfter ? formatKRW(tx.balanceAfter) : '-'}
         </td>
+        <td style="text-align:center;">
+          ${hasMarket ? `
+            <span class="badge" style="background:#eff6ff;color:#1e40af;font-weight:700;border:1px solid #bfdbfe;font-size:11px;">
+              🏷️ ${matchedMarket}
+            </span>
+          ` : `<span style="color:#94a3b8;font-size:11px;">일반거래</span>`}
+        </td>
         <td style="max-width:240px;text-overflow:ellipsis;overflow:hidden;white-space:nowrap;" title="${tx.summary || ''}">
           ${tx.summary || '-'}
         </td>
         <td style="font-size:12px;color:#64748b;">${tx.note || '-'}</td>
         <td style="text-align:center;">
-          <button class="btn btn-sm btn-secondary" onclick="deleteBankTx(${tx.id})" style="font-size:11px;padding:2px 6px;color:#dc2626;">🗑️</button>
+          <button class="btn btn-sm btn-secondary" onclick="deleteBankTx(${tx.id})" style="font-size:11px;padding:2px 6px;color:#dc2626;" title="삭제">🗑️</button>
         </td>
       </tr>
     `;
   }).join('');
+}
+
+function filterBankTxByMarket(marketName) {
+  const filterMkt = document.getElementById('bankTxFilterMarket');
+  const filterType = document.getElementById('bankTxFilterType');
+  if (filterMkt) filterMkt.value = marketName;
+  if (filterType) filterType.value = '입금';
+  renderBankTxTable();
+  const table = document.getElementById('bankTxTable');
+  if (table) {
+    table.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
 }
 
 function openBankTxModal() {
@@ -2234,6 +2408,16 @@ function openBankTxModal() {
     selectAcc.innerHTML = AppState.bankAccounts.map(b => `
       <option value="${b.id}">${b.bankName || ''} - ${b.accountName || b.name} (${b.accountNum})</option>
     `).join('');
+  }
+
+  const mktSelect = document.getElementById('formTxMarket');
+  if (mktSelect) {
+    const markets = getKnownMarketsList();
+    mktSelect.innerHTML = `
+      <option value="AUTO" selected>🤖 적요 내용으로 자동 감지 (추천)</option>
+      ${markets.map(m => `<option value="${m}">${m} 정산금</option>`).join('')}
+      <option value="NONE">연결 안 함 (일반 입금 / 비정산금)</option>
+    `;
   }
 
   const dateEl = document.getElementById('formTxDate');
@@ -2263,6 +2447,7 @@ function saveBankTx() {
   const type = document.getElementById('formTxType').value;
   const amount = parseFloat(document.getElementById('formTxAmount').value) || 0;
   const summary = document.getElementById('formTxSummary').value.trim();
+  const targetMarket = document.getElementById('formTxMarket') ? document.getElementById('formTxMarket').value : 'AUTO';
   const note = document.getElementById('formTxNote').value.trim();
 
   if (!amount || amount <= 0 || !summary) {
@@ -2294,6 +2479,7 @@ function saveBankTx() {
     amount: amount,
     balanceAfter: targetBank.balance,
     summary: summary,
+    targetMarket: targetMarket,
     note: note
   };
 
@@ -2428,6 +2614,7 @@ function handleBankFileSelected(event) {
 
         const type = inAmt > 0 ? '입금' : '출금';
         const amount = inAmt > 0 ? inAmt : outAmt;
+        const matchedMarket = (type === '입금') ? detectMarketFromText(summaryVal) : null;
 
         AppState.bankTransactions.unshift({
           id: Date.now() + Math.floor(Math.random() * 10000),
@@ -2440,7 +2627,8 @@ function handleBankFileSelected(event) {
           amount: amount,
           balanceAfter: balVal || 0,
           summary: summaryVal,
-          note: '엑셀 일괄 등록'
+          targetMarket: matchedMarket || 'AUTO',
+          note: matchedMarket ? `[${matchedMarket}] 자동감지 정산입금` : '엑셀 일괄 등록'
         });
 
         importedCount++;
@@ -2641,11 +2829,9 @@ function calculatePL() {
       totalDue += ((o.actualSettlement > 0) ? o.actualSettlement : o.standardPrice);
     }
   });
-  let totalDeposited = 0;
-  Object.keys(AppState.marketSettlements).forEach(m => {
-    totalDeposited += (AppState.marketSettlements[m] || 0);
-  });
-  const remainingReceivable = Math.max(0, totalDue - totalDeposited);
+  // ⭐ 통장 거래내역 참조 판매처별 정산 입금 완료액 및 남은 미수금 동기화
+  const bankDeposits = getMarketDepositsFromBank();
+  const remainingReceivable = Math.max(0, totalDue - bankDeposits.totalSettlementDeposited);
 
   // 사입 품목 재고 평가액 계산
   let totalStockValue = 0;
@@ -3631,6 +3817,8 @@ window.openBankTxModal = openBankTxModal;
 window.closeBankTxModal = closeBankTxModal;
 window.saveBankTx = saveBankTx;
 window.deleteBankTx = deleteBankTx;
+window.filterBankTxByMarket = filterBankTxByMarket;
+window.getMarketDepositsFromBank = getMarketDepositsFromBank;
 window.openBankUploadModal = openBankUploadModal;
 window.closeBankUploadModal = closeBankUploadModal;
 window.handleBankFileSelected = handleBankFileSelected;
