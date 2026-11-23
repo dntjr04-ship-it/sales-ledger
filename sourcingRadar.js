@@ -2864,11 +2864,13 @@ function buildSourcingPriceComparison(baseProduct) {
 function initSourcingRadar() {
   if (typeof localStorage !== 'undefined') {
     const liveVer = localStorage.getItem('RADAR_LIVE_DATA_VER');
-    if (liveVer !== '20261123_v13') {
+    if (liveVer !== '20261123_v14') {
       localStorage.removeItem('RADAR_USER_PRICES');
       localStorage.removeItem('RADAR_USER_DANAWA_PRICES');
-      localStorage.setItem('RADAR_LIVE_DATA_VER', '20261123_v13');
-      console.log('🧹 다나와 중심 가격비교 및 최저가 상세 2대 직링크 전면 개편 완료!');
+      localStorage.removeItem('RADAR_USER_KEYWORDS');
+      localStorage.removeItem('RADAR_USER_DANAWA_URLS');
+      localStorage.setItem('RADAR_LIVE_DATA_VER', '20261123_v14');
+      console.log('🧹 묶음 개수 보존 & 최저가 상세 실시간 동기화 v14 적용 완료!');
     }
   }
   SourcingRadarState.products = GMARKET_BEST_100_BASE.map(p => buildSourcingPriceComparison(p));
