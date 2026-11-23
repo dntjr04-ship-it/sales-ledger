@@ -35,7 +35,28 @@ function cleanSearchKeyword(name) {
   str = str.replace(/[\\/]/g, ' ');
   str = str.replace(/\s+/g, ' ').trim();
   str = str.replace(/[\s([{\-~]+$/, '');
-  return str.trim();
+
+  // 6. 🌟 [수량 & 품목 필수 보존 엔진] 원본 상품명의 핵심 수량(12개, 6팩 등)과 품목명(치약 등)이 빠지지 않도록 보강!
+  const rawSpecs = name.match(/\d+[\s]*(?:kg|g|ml|L|T|매|롤|캔|봉|병|팩|개|구|마리|미|박스|정|포|입|P|조|세트)/gi) || [];
+  const coreCategoryNouns = ['치약', '칫솔', '기저귀', '물티슈', '화장지', '세제', '샴푸', '호빵', '라면', '햇반', '생수', '커피', '김치', '만두'];
+  
+  // 품목 누락 보강
+  coreCategoryNouns.forEach(noun => {
+    if (name.includes(noun) && !str.includes(noun)) {
+      str += ' ' + noun;
+    }
+  });
+
+  // 묶음 수량 스펙 (개, 팩, 매, 입, 박스, 캔, 봉, 세트 등) 누락 보강
+  const qtySpecs = rawSpecs.filter(s => /\d+[\s]*(?:매|롤|캔|봉|병|팩|개|구|마리|미|박스|정|포|입|P|세트)/i.test(s));
+  if (qtySpecs.length > 0) {
+    const lastQty = qtySpecs[qtySpecs.length - 1].replace(/\s+/g, '');
+    if (!str.includes(lastQty)) {
+      str += ' ' + lastQty;
+    }
+  }
+
+  return str.replace(/\s+/g, ' ').trim();
 }
 
 // 🏢 리사님이 보내주신 31개 소싱처 목록 및 직링크 생성기 (전수 점검 및 200 OK 실작동 URL 적용)
@@ -3551,7 +3572,10 @@ function renderSourcingRadar() {
               )
             }
             <button class="btn btn-sm" onclick="promptEditDanawaPrice(${p.rank})" style="padding:1px 5px;font-size:10px;background:#fff;color:#1d4ed8;border:1px solid #bfdbfe;cursor:pointer;border-radius:4px;" title="다나와 가격 직접 수정">
-              ✏️수정
+              ✏️가격
+            </button>
+            <button class="btn btn-sm" onclick="promptEditDanawaDetailUrl(${p.rank})" style="padding:1px 5px;font-size:10px;background:#fff;color:#2563eb;border:1px solid #bfdbfe;cursor:pointer;border-radius:4px;margin-left:2px;" title="다나와 최저가 상세 카탈로그 링크(URL) 직접 수정">
+              🔗링크
             </button>
           </div>
           <div style="font-size:15px;font-weight:900;color:#1e40af;margin-bottom:5px;">
@@ -3820,13 +3844,14 @@ function promptEditRadarKeyword(rank) {
     localStorage.setItem('RADAR_USER_KEYWORDS', JSON.stringify(userKeywords));
   }
 
-  // 2. 검색어 및 다나와 2대 링크 즉시 재구성
+  // 2. 검색어 및 다나와 2대 링크 즉시 재구성 (수정된 검색어로 100% 즉시 반영!)
   prod.cleanKeyword = clean;
   prod.danawaSearchUrl = `https://search.danawa.com/dsearch.php?query=${encodeURIComponent(clean)}`;
-  if (!prod.isDanawaDirect) {
-    prod.danawaDetailUrl = prod.danawaSearchUrl;
-    prod.danawaUrl = prod.danawaSearchUrl;
-  }
+  prod.danawaDetailUrl = prod.danawaSearchUrl;
+  prod.danawaUrl = prod.danawaSearchUrl;
+  prod.lowestUrl = prod.danawaSearchUrl;
+  prod.isDanawaDirect = false;
+
   if (prod.lowestSourcing) {
     prod.lowestSourcing.detailUrl = prod.danawaDetailUrl;
   }
@@ -3838,8 +3863,46 @@ function promptEditRadarKeyword(rank) {
   }
 
   renderSourcingRadar();
-  showRadarToast(`💾 [${clean}] 검색어가 갱신되어 다나와·네이버·31개처 링크가 즉시 업데이트되었습니다!`);
+  showRadarToast(`💾 [${clean}] 검색어가 갱신되어 다나와 가격비교 및 최저가 바로가기, 31개처 링크가 즉시 업데이트되었습니다!`);
 }
+
+/**
+ * 다나와 최저가 상세 카탈로그 링크(URL) 직접 수정 기능
+ */
+function promptEditDanawaDetailUrl(rank) {
+  const prod = SourcingRadarState.products.find(p => p.rank === rank);
+  if (!prod) return;
+  const currentUrl = prod.danawaDetailUrl || '';
+  const input = prompt(
+    `[${prod.name}]\n\n다나와 최저가 상세 카탈로그 링크(URL)를 직접 붙여넣어 주세요:\n(예: https://prod.danawa.com/info/?pcode=12345678)`,
+    currentUrl
+  );
+  if (input === null) return;
+  const cleanUrl = input.trim();
+  if (!cleanUrl) {
+    alert('URL 링크를 입력해주세요, 리사님!');
+    return;
+  }
+
+  const userUrls = typeof localStorage !== 'undefined' ? JSON.parse(localStorage.getItem('RADAR_USER_DANAWA_URLS') || '{}') : {};
+  userUrls[rank] = cleanUrl;
+  if (typeof localStorage !== 'undefined') {
+    localStorage.setItem('RADAR_USER_DANAWA_URLS', JSON.stringify(userUrls));
+  }
+
+  prod.danawaDetailUrl = cleanUrl;
+  prod.danawaUrl = cleanUrl;
+  prod.lowestUrl = cleanUrl;
+  prod.isDanawaDirect = true;
+  if (prod.lowestSourcing) {
+    prod.lowestSourcing.detailUrl = cleanUrl;
+  }
+
+  renderSourcingRadar();
+  showRadarToast(`🔗 다나와 최저가 상세 링크가 성공적으로 수정되었습니다!`);
+}
+
+window.promptEditDanawaDetailUrl = promptEditDanawaDetailUrl;
 
 window.promptEditDanawaPrice = promptEditDanawaPrice;
 window.promptEditNaverPrice = promptEditNaverPrice;

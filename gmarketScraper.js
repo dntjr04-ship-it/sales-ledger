@@ -106,11 +106,16 @@ function deriveCleanKeyword(name) {
   if (modelMatch && !modelMatch[1].toLowerCase().includes('1+1')) {
     return modelMatch[1];
   }
+
+  // 1. 원본에서 모든 용량 및 수량 스펙 추출 (예: 150g, 12개, 30매, 6팩, 180매, 20P, 4개)
+  const rawSpecs = name.match(/\d+[\s]*(?:kg|g|ml|L|T|매|롤|캔|봉|병|팩|개|구|마리|미|박스|정|포|입|P|조|세트)/gi) || [];
+
   let clean = name
+    .replace(/\([^)]*(?:할인|쿠폰|카드|주문폭주|발송|당일|특가|단독|행사|무배|사은|증정)[^)]*\)/gi, ' ')
+    .replace(/\[[^\]]*(?:할인|쿠폰|카드|주문폭주|발송|당일|특가|단독|행사|무배|사은|증정)[^\]]*\]/gi, ' ')
     .replace(/\([^)]*\)/g, ' ')
     .replace(/\[[^\]]*\]/g, ' ')
-    .replace(/<[^>]*>/g, ' ')
-    .replace(/[\(\[\<][^\)\]\>]*$/, ' ');
+    .replace(/<[^>]*>/g, ' ');
 
   const noise = [
     '사은품', '증정', '특가', '1+1', '주문폭주', '예약발송', '창고대방출',
@@ -119,20 +124,50 @@ function deriveCleanKeyword(name) {
     '쿠폰', '할인', '행사', '라이브', '본사직영', '공식', '정품', '국내산', 'GAP획득',
     '랜덤', '가정용', '무라벨', '선택구매', '패밀리박스', '전국무료배송', '고객감사특가',
     '신세계강남점', '현대홈쇼핑', '김장용', '초특가', '핫딜', '옵션선택', '대용량',
-    '기타브랜드', '브랜드', '프리미엄', '신선집중', '최대혜택', '최종', '카드할인'
+    '기타브랜드', '브랜드', '프리미엄', '신선집중', '최대혜택', '최종', '카드할인',
+    '온에어핫딜', '온에어'
   ];
   for (const w of noise) {
     clean = clean.split(w).join(' ');
   }
   clean = clean.replace(/[,\/\|\&~\!@#\$%\^_\=\+]/g, ' ').replace(/\s+/g, ' ').trim();
-  const specMatch = clean.match(/(\d+(?:kg|g|ml|L|T|매|롤|캔|봉|병|팩|개|구|마리|미|박스|정|포))/i);
+
+  // 필수 보존 품목 명사
+  const coreCategoryNouns = ['치약', '칫솔', '기저귀', '물티슈', '화장지', '세제', '샴푸', '린스', '비누', '바디워시', '호빵', '라면', '햇반', '생수', '커피', '김치', '참치', '스팸', '만두'];
+  const foundNouns = coreCategoryNouns.filter(noun => name.includes(noun));
+
   const fillerSingleWords = new Set(['의', '특', '신', '더', '및', '외', '용', '형']);
   const tokens = clean.split(' ').filter(t => t.length > 0 && !fillerSingleWords.has(t));
-  let res = tokens.slice(0, 3).join(' ');
-  if (specMatch && !res.includes(specMatch[1])) {
-    res += ' ' + specMatch[1];
+  
+  // 단위(숫자+단위) 제외한 순수 상품명 단어들
+  const nameTokens = tokens.filter(t => !/^\d+[\s]*(?:kg|g|ml|L|T|매|롤|캔|봉|병|팩|개|구|마리|미|박스|정|포|입|P|조|세트)?$/i.test(t));
+  let baseKw = nameTokens.slice(0, 3).join(' ');
+
+  // 만약 기본 키워드에 필수 품목 명사(예: 치약, 기저귀)가 빠졌다면 반드시 추가!
+  foundNouns.forEach(noun => {
+    if (!baseKw.includes(noun)) {
+      baseKw += ' ' + noun;
+    }
+  });
+
+  // 용량 스펙 (g, kg, ml, L, T 등)
+  const volSpec = rawSpecs.find(s => /\d+[\s]*(?:kg|g|ml|L|T|mg)/i.test(s));
+  // 묶음 수량 스펙 (개, 팩, 매, 입, 박스, 캔, 봉, 세트 등)
+  const qtySpecs = rawSpecs.filter(s => /\d+[\s]*(?:매|롤|캔|봉|병|팩|개|구|마리|미|박스|정|포|입|P|세트)/i.test(s));
+
+  let res = baseKw;
+  if (volSpec && !res.includes(volSpec.replace(/\s+/g, ''))) {
+    res += ' ' + volSpec.replace(/\s+/g, '');
   }
-  return res.trim() || name.substring(0, 20);
+  // 가장 큰/마지막 묶음 수량 (예: 12개, 6팩, 16개, 4개) 반드시 추가!
+  if (qtySpecs.length > 0) {
+    const lastQty = qtySpecs[qtySpecs.length - 1].replace(/\s+/g, '');
+    if (!res.includes(lastQty)) {
+      res += ' ' + lastQty;
+    }
+  }
+
+  return res.replace(/\s+/g, ' ').trim() || name.substring(0, 20);
 }
 
 function classifyGmarketItem(name, defaultGroupLabel = '') {
@@ -407,5 +442,6 @@ async function scrapeGmarketBest100(limit = 100, groupCode = '100000000', subGro
 module.exports = {
   scrapeGmarketBest100,
   getCachedCategoryBest,
+  deriveCleanKeyword,
   closeSharedBrowser
 };
