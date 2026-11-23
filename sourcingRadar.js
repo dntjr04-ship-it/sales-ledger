@@ -2886,6 +2886,10 @@ async function checkLocalServerHealth() {
 }
 
 function startServerHealthPolling() {
+  // Vercel 등 외부 배포 사이트에서는 로컬 서버 폴링을 건너뛰어 브라우저 경고 방지
+  if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+    return;
+  }
   checkLocalServerHealth();
   if (SourcingRadarState.serverHealthTimerId) {
     clearInterval(SourcingRadarState.serverHealthTimerId);
