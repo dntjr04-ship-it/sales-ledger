@@ -20,43 +20,97 @@ function cleanSearchKeyword(name) {
     if (str.includes('5만원')) return '구글 플레이 기프트카드 5만원권';
     if (str.includes('3만원')) return '구글 플레이 기프트카드 3만원권';
   }
-  // 2. 불필요한 홍보성 접두어/말머리 제거: (신선집중), (앵콜특가), [단독] 등
+
+  // 2. 증정/사은품 꼬리표 사전 제거 (예: +크림빵 2봉 증정, +토너 증정 등)
+  str = str.replace(/\+[\s가-힣0-9a-zA-Z]*(?:증정|사은품|덤)[\s]*/gi, ' ');
+
+  // 3. 1kg+1kg, 500g+500g 등 동일 용량 더하기 패턴 감지 -> '1kg 2개'로 변환
+  const plusMatch = str.match(/(\d+[\s]*(?:kg|g|ml|l|L))\s*\+\s*(\d+[\s]*(?:kg|g|ml|l|L))/i);
+  let bundleMultiplier = '';
+  if (plusMatch) {
+    bundleMultiplier = plusMatch[1].replace(/\s+/g, '') + ' 2개';
+  } else if (/1\+1/i.test(str)) {
+    bundleMultiplier = '2개';
+  }
+
+  // 4. x 72입, x 24개 등 곱하기 수량 정규화 (예: x 72입 -> 72입)
+  const xMatch = str.match(/x\s*(\d+[\s]*(?:입|개|팩|캔|봉|병|롤|매|박스|세트))/i);
+  let xCount = xMatch ? xMatch[1].replace(/\s+/g, '') : '';
+
+  // 5. 모든 용량 및 수량 스펙 추출
+  const allSpecs = [...str.matchAll(/\d+[\s]*(?:kg|g|ml|l|L|T|매|롤|캔|봉|병|팩|개|구|마리|미|박스|정|포|입|P|조|세트)/gi)].map(m => m[0].replace(/\s+/g, ''));
+
+  // 6. 불필요한 홍보성 접두어/말머리 제거: (신선집중), (앵콜특가), [단독] 등
   str = str.replace(/^[\s(\[]*(?:신선집중|앵콜행사|앵콜|특가|단독특가|초특가|한정특가|신선직송|당일발송|예약발송|단독|주문폭주|라이브|기획전|사은행사)[^)\]]*[)\]]\s*/gi, '');
   str = str.replace(/\((?:신선집중|앵콜행사|앵콜|특가|단독특가|초특가|한정특가|신선직송|당일발송|예약발송|단독|주문폭주[^)]*|라이브[^)]*|\d+[\/.]\d+[^)]*|쿠폰[^)]*|카드[^)]*|적립[^)]*)\)/gi, ' ');
   str = str.replace(/\[(?:신선집중|앵콜행사|앵콜|특가|단독특가|초특가|한정특가|신선직송|당일발송|예약발송|단독|주문폭주[^\]]*|라이브[^\]]*|\d+[\/.]\d+[^\]]*|쿠폰[^\]]*|카드[^\]]*|적립[^\]]*)\]/gi, ' ');
-  // 3. 증정/사은품/쿠폰 괄호 제거
-  str = str.replace(/\([^)]*(?:증정|사은품|할인|쿠폰|카드|주문폭주|발송일|선착순)[^)]*\)/gi, ' ');
-  // 4. 가격/이벤트 마케팅 문구 제거
-  str = str.replace(/최종\s*\d+만[^\s]*/gi, ' ');
-  str = str.replace(/최대혜택\s*\d+[원만]?[^\s]*/gi, ' ');
-  str = str.replace(/\d+%\s*할인[^\s]*/gi, ' ');
-  str = str.replace(/(?:사은품\s*증정|선착순\s*특가|골라담기|선택구매|랜덤발송|무료배송|당일발송|갓\s*추수하여[^\s]*|밥맛이[^\s]*)/gi, ' ');
-  // 5. 정규화
-  str = str.replace(/[\\/]/g, ' ');
-  str = str.replace(/\s+/g, ' ').trim();
-  str = str.replace(/[\s([{\-~]+$/, '');
+  str = str.replace(/\([^)]*(?:할인|쿠폰|카드|주문폭주|발송|당일|특가|단독|행사|무배|사은|증정|옵션|마일리지|포인트)[^)]*\)/gi, ' ');
+  str = str.replace(/\[[^\]]*(?:할인|쿠폰|카드|주문폭주|발송|당일|특가|단독|행사|무배|사은|증정|옵션|마일리지|포인트)[^\]]*\]/gi, ' ');
+  str = str.replace(/\([^)]*\)/g, ' ');
+  str = str.replace(/\[[^\]]*\]/g, ' ');
 
-  // 6. 🌟 [수량 & 품목 필수 보존 엔진] 원본 상품명의 핵심 수량(12개, 6팩 등)과 품목명(치약 등)이 빠지지 않도록 보강!
-  const rawSpecs = name.match(/\d+[\s]*(?:kg|g|ml|L|T|매|롤|캔|봉|병|팩|개|구|마리|미|박스|정|포|입|P|조|세트)/gi) || [];
-  const coreCategoryNouns = ['치약', '칫솔', '기저귀', '물티슈', '화장지', '세제', '샴푸', '호빵', '라면', '햇반', '생수', '커피', '김치', '만두'];
+  const noise = [
+    '사은품', '증정', '특가', '1+1', '주문폭주', '예약발송', '창고대방출',
+    '네이버페이', '포인트', '골라담기', '시리즈', '모음전', '첫수확', '로얄과',
+    '신선직송', '단독', '앵콜행사', '선착순', '토너포함', '무료배송', '당일발송',
+    '쿠폰', '할인', '행사', '라이브', '본사직영', '공식', '정품', '국내산', 'GAP획득',
+    '랜덤', '가정용', '무라벨', '선택구매', '패밀리박스', '전국무료배송', '고객감사특가',
+    '신세계강남점', '현대홈쇼핑', '김장용', '초특가', '핫딜', '옵션선택', '대용량',
+    '기타브랜드', '브랜드', '프리미엄', '신선집중', '최대혜택', '최종', '카드할인',
+    '온에어핫딜', '온에어', '추천', '업소용', '100% 천연펄프', '무형광'
+  ];
+  for (const w of noise) {
+    str = str.split(w).join(' ');
+  }
+  str = str.replace(/[,\/\|\&~\!@#\$%\^_\=\+]/g, ' ').replace(/\s+/g, ' ').trim();
+
+  // 7. 필수 보존 품목 명사
+  const coreCategoryNouns = ['치약', '칫솔', '기저귀', '물티슈', '화장지', '세제', '샴푸', '린스', '비누', '바디워시', '호빵', '라면', '햇반', '생수', '멸균우유', '치킨텐더', '빅파이', '커피', '김치', '참치', '스팸', '만두'];
+  const foundNouns = coreCategoryNouns.filter(noun => name.includes(noun));
+
+  const fillerSingleWords = new Set(['의', '특', '신', '더', '및', '외', '용', '형', 'x', 'X', '총']);
+  const tokens = str.split(' ').filter(t => t.length > 0 && !fillerSingleWords.has(t));
+  const nameTokens = tokens.filter(t => !/^\d+[\s]*(?:kg|g|ml|l|L|T|매|롤|캔|봉|병|팩|개|구|마리|미|박스|정|포|입|P|조|세트)?$/i.test(t));
   
-  // 품목 누락 보강
-  coreCategoryNouns.forEach(noun => {
-    if (name.includes(noun) && !str.includes(noun)) {
-      str += ' ' + noun;
+  const unique = [...new Set(nameTokens)];
+  const filteredTokens = unique.filter((t, idx) => {
+    return !unique.some((other, oIdx) => oIdx !== idx && other.length > t.length && other.includes(t));
+  });
+  let baseKw = filteredTokens.slice(0, 3).join(' ');
+
+  foundNouns.forEach(noun => {
+    if (!baseKw.includes(noun)) {
+      baseKw += ' ' + noun;
     }
   });
 
-  // 묶음 수량 스펙 (개, 팩, 매, 입, 박스, 캔, 봉, 세트 등) 누락 보강
-  const qtySpecs = rawSpecs.filter(s => /\d+[\s]*(?:매|롤|캔|봉|병|팩|개|구|마리|미|박스|정|포|입|P|세트)/i.test(s));
-  if (qtySpecs.length > 0) {
-    const lastQty = qtySpecs[qtySpecs.length - 1].replace(/\s+/g, '');
-    if (!str.includes(lastQty)) {
-      str += ' ' + lastQty;
+  // 8. 🌟 [복합 스펙 완벽 지원] (1kg 2개, 30롤 2팩, 200ml 72입 등)
+  let finalSpecs = [];
+  if (bundleMultiplier) {
+    finalSpecs.push(bundleMultiplier);
+  } else {
+    const vol = allSpecs.find(s => /\d+[\s]*(?:kg|g|ml|l|L|T)/i.test(s));
+    if (vol) finalSpecs.push(vol);
+
+    if (xCount) {
+      finalSpecs.push(xCount);
+    } else {
+      const qtyList = allSpecs.filter(s => /\d+[\s]*(?:매|롤|캔|봉|병|팩|개|구|마리|미|박스|정|포|입|P|조|세트)/i.test(s));
+      if (qtyList.length >= 2) {
+        finalSpecs.push(qtyList[qtyList.length - 2]);
+        finalSpecs.push(qtyList[qtyList.length - 1]);
+      } else if (qtyList.length === 1) {
+        finalSpecs.push(qtyList[0]);
+      }
     }
   }
 
-  return str.replace(/\s+/g, ' ').trim();
+  let res = baseKw;
+  finalSpecs.forEach(s => {
+    if (!res.includes(s)) res += ' ' + s;
+  });
+
+  return res.replace(/\s+/g, ' ').trim() || name.substring(0, 20);
 }
 
 // 🏢 리사님이 보내주신 31개 소싱처 목록 및 직링크 생성기 (전수 점검 및 200 OK 실작동 URL 적용)
@@ -2864,13 +2918,13 @@ function buildSourcingPriceComparison(baseProduct) {
 function initSourcingRadar() {
   if (typeof localStorage !== 'undefined') {
     const liveVer = localStorage.getItem('RADAR_LIVE_DATA_VER');
-    if (liveVer !== '20261123_v14') {
+    if (liveVer !== '20261123_v15') {
       localStorage.removeItem('RADAR_USER_PRICES');
       localStorage.removeItem('RADAR_USER_DANAWA_PRICES');
       localStorage.removeItem('RADAR_USER_KEYWORDS');
       localStorage.removeItem('RADAR_USER_DANAWA_URLS');
-      localStorage.setItem('RADAR_LIVE_DATA_VER', '20261123_v14');
-      console.log('🧹 묶음 개수 보존 & 최저가 상세 실시간 동기화 v14 적용 완료!');
+      localStorage.setItem('RADAR_LIVE_DATA_VER', '20261123_v15');
+      console.log('🧹 1+1 및 복합 수량(2팩, 72입) 정밀 추출 v15 적용 완료!');
     }
   }
   SourcingRadarState.products = GMARKET_BEST_100_BASE.map(p => buildSourcingPriceComparison(p));

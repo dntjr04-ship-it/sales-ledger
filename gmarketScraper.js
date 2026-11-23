@@ -107,12 +107,29 @@ function deriveCleanKeyword(name) {
     return modelMatch[1];
   }
 
-  // 1. 원본에서 모든 용량 및 수량 스펙 추출 (예: 150g, 12개, 30매, 6팩, 180매, 20P, 4개)
-  const rawSpecs = name.match(/\d+[\s]*(?:kg|g|ml|L|T|매|롤|캔|봉|병|팩|개|구|마리|미|박스|정|포|입|P|조|세트)/gi) || [];
+  // 1. 증정/사은품 꼬리표 사전 제거 (예: +크림빵 2봉 증정, +토너 증정 등)
+  let str = name.replace(/\+[\s가-힣0-9a-zA-Z]*(?:증정|사은품|덤)[\s]*/gi, ' ');
 
-  let clean = name
-    .replace(/\([^)]*(?:할인|쿠폰|카드|주문폭주|발송|당일|특가|단독|행사|무배|사은|증정)[^)]*\)/gi, ' ')
-    .replace(/\[[^\]]*(?:할인|쿠폰|카드|주문폭주|발송|당일|특가|단독|행사|무배|사은|증정)[^\]]*\]/gi, ' ')
+  // 2. 1kg+1kg, 500g+500g 등 동일 용량 더하기 패턴 감지 -> '1kg 2개'로 변환
+  const plusMatch = str.match(/(\d+[\s]*(?:kg|g|ml|l|L))\s*\+\s*(\d+[\s]*(?:kg|g|ml|l|L))/i);
+  let bundleMultiplier = '';
+  if (plusMatch) {
+    bundleMultiplier = plusMatch[1].replace(/\s+/g, '') + ' 2개';
+  } else if (/1\+1/i.test(str)) {
+    bundleMultiplier = '2개';
+  }
+
+  // 3. x 72입, x 24개 등 곱하기 수량 정규화 (예: x 72입 -> 72입)
+  const xMatch = str.match(/x\s*(\d+[\s]*(?:입|개|팩|캔|봉|병|롤|매|박스|세트))/i);
+  let xCount = xMatch ? xMatch[1].replace(/\s+/g, '') : '';
+
+  // 4. 모든 용량 및 수량 스펙 추출
+  const allSpecs = [...str.matchAll(/\d+[\s]*(?:kg|g|ml|l|L|T|매|롤|캔|봉|병|팩|개|구|마리|미|박스|정|포|입|P|조|세트)/gi)].map(m => m[0].replace(/\s+/g, ''));
+
+  // 5. 불필요한 마케팅 노이즈 제거
+  let clean = str
+    .replace(/\([^)]*(?:할인|쿠폰|카드|주문폭주|발송|당일|특가|단독|행사|무배|사은|증정|옵션|마일리지|포인트)[^)]*\)/gi, ' ')
+    .replace(/\[[^\]]*(?:할인|쿠폰|카드|주문폭주|발송|당일|특가|단독|행사|무배|사은|증정|옵션|마일리지|포인트)[^\]]*\]/gi, ' ')
     .replace(/\([^)]*\)/g, ' ')
     .replace(/\[[^\]]*\]/g, ' ')
     .replace(/<[^>]*>/g, ' ');
@@ -125,7 +142,7 @@ function deriveCleanKeyword(name) {
     '랜덤', '가정용', '무라벨', '선택구매', '패밀리박스', '전국무료배송', '고객감사특가',
     '신세계강남점', '현대홈쇼핑', '김장용', '초특가', '핫딜', '옵션선택', '대용량',
     '기타브랜드', '브랜드', '프리미엄', '신선집중', '최대혜택', '최종', '카드할인',
-    '온에어핫딜', '온에어'
+    '온에어핫딜', '온에어', '추천', '업소용', '100% 천연펄프', '무형광'
   ];
   for (const w of noise) {
     clean = clean.split(w).join(' ');
@@ -133,39 +150,50 @@ function deriveCleanKeyword(name) {
   clean = clean.replace(/[,\/\|\&~\!@#\$%\^_\=\+]/g, ' ').replace(/\s+/g, ' ').trim();
 
   // 필수 보존 품목 명사
-  const coreCategoryNouns = ['치약', '칫솔', '기저귀', '물티슈', '화장지', '세제', '샴푸', '린스', '비누', '바디워시', '호빵', '라면', '햇반', '생수', '커피', '김치', '참치', '스팸', '만두'];
+  const coreCategoryNouns = ['치약', '칫솔', '기저귀', '물티슈', '화장지', '세제', '샴푸', '린스', '비누', '바디워시', '호빵', '라면', '햇반', '생수', '멸균우유', '치킨텐더', '빅파이', '커피', '김치', '참치', '스팸', '만두'];
   const foundNouns = coreCategoryNouns.filter(noun => name.includes(noun));
 
-  const fillerSingleWords = new Set(['의', '특', '신', '더', '및', '외', '용', '형']);
+  const fillerSingleWords = new Set(['의', '특', '신', '더', '및', '외', '용', '형', 'x', 'X', '총']);
   const tokens = clean.split(' ').filter(t => t.length > 0 && !fillerSingleWords.has(t));
+  const nameTokens = tokens.filter(t => !/^\d+[\s]*(?:kg|g|ml|l|L|T|매|롤|캔|봉|병|팩|개|구|마리|미|박스|정|포|입|P|조|세트)?$/i.test(t));
   
-  // 단위(숫자+단위) 제외한 순수 상품명 단어들
-  const nameTokens = tokens.filter(t => !/^\d+[\s]*(?:kg|g|ml|L|T|매|롤|캔|봉|병|팩|개|구|마리|미|박스|정|포|입|P|조|세트)?$/i.test(t));
-  let baseKw = nameTokens.slice(0, 3).join(' ');
+  const unique = [...new Set(nameTokens)];
+  const filteredTokens = unique.filter((t, idx) => {
+    return !unique.some((other, oIdx) => oIdx !== idx && other.length > t.length && other.includes(t));
+  });
+  let baseKw = filteredTokens.slice(0, 3).join(' ');
 
-  // 만약 기본 키워드에 필수 품목 명사(예: 치약, 기저귀)가 빠졌다면 반드시 추가!
   foundNouns.forEach(noun => {
     if (!baseKw.includes(noun)) {
       baseKw += ' ' + noun;
     }
   });
 
-  // 용량 스펙 (g, kg, ml, L, T 등)
-  const volSpec = rawSpecs.find(s => /\d+[\s]*(?:kg|g|ml|L|T|mg)/i.test(s));
-  // 묶음 수량 스펙 (개, 팩, 매, 입, 박스, 캔, 봉, 세트 등)
-  const qtySpecs = rawSpecs.filter(s => /\d+[\s]*(?:매|롤|캔|봉|병|팩|개|구|마리|미|박스|정|포|입|P|세트)/i.test(s));
+  // 스펙 결합 (1kg+1kg -> '1kg 2개', 30롤 2팩 등 복합 스펙 완벽 지원)
+  let finalSpecs = [];
+  if (bundleMultiplier) {
+    finalSpecs.push(bundleMultiplier);
+  } else {
+    const vol = allSpecs.find(s => /\d+[\s]*(?:kg|g|ml|l|L|T)/i.test(s));
+    if (vol) finalSpecs.push(vol);
 
-  let res = baseKw;
-  if (volSpec && !res.includes(volSpec.replace(/\s+/g, ''))) {
-    res += ' ' + volSpec.replace(/\s+/g, '');
-  }
-  // 가장 큰/마지막 묶음 수량 (예: 12개, 6팩, 16개, 4개) 반드시 추가!
-  if (qtySpecs.length > 0) {
-    const lastQty = qtySpecs[qtySpecs.length - 1].replace(/\s+/g, '');
-    if (!res.includes(lastQty)) {
-      res += ' ' + lastQty;
+    if (xCount) {
+      finalSpecs.push(xCount);
+    } else {
+      const qtyList = allSpecs.filter(s => /\d+[\s]*(?:매|롤|캔|봉|병|팩|개|구|마리|미|박스|정|포|입|P|조|세트)/i.test(s));
+      if (qtyList.length >= 2) {
+        finalSpecs.push(qtyList[qtyList.length - 2]);
+        finalSpecs.push(qtyList[qtyList.length - 1]);
+      } else if (qtyList.length === 1) {
+        finalSpecs.push(qtyList[0]);
+      }
     }
   }
+
+  let res = baseKw;
+  finalSpecs.forEach(s => {
+    if (!res.includes(s)) res += ' ' + s;
+  });
 
   return res.replace(/\s+/g, ' ').trim() || name.substring(0, 20);
 }
