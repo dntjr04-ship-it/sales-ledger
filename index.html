@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>리사님의 만능 매출장부 & 경영 비서</title>
-  <link rel="stylesheet" href="style.css?v=20261124_06">
+  <link rel="stylesheet" href="style.css?v=20261124_07">
   <!-- Chart.js for beautiful charts -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <!-- Feather Icons for clean icons -->
@@ -608,27 +608,97 @@
               <select id="bankTxFilterMarket" class="select-box" onchange="renderBankTxTable()">
                 <option value="ALL">모든 정산 판매처</option>
               </select>
-              <button class="btn btn-primary btn-sm" onclick="openBankTxModal()">
-                <i data-feather="plus"></i> ✍️ 거래내역 개별 등록
+              <button class="btn btn-sm" onclick="togglePasteBox()" style="background:#0284c7;color:#fff;font-weight:700;border:none;">
+                <i data-feather="clipboard"></i> 📋 엑셀 복사-붙여넣기
               </button>
               <button class="btn btn-sm" onclick="openBankUploadModal()" style="background:#15803d;color:#fff;font-weight:700;border:none;">
                 <i data-feather="upload-cloud"></i> 📥 은행 엑셀 업로드
               </button>
             </div>
           </div>
+
+          <!-- 📋 엑셀 여러 줄 복사-붙여넣기 빠른 일괄 등록 영역 -->
+          <div id="bankPasteBoxContainer" style="display:none;background:#f0f9ff;padding:12px 16px;border-bottom:1px solid #bae6fd;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+              <span style="font-size:12.5px;font-weight:700;color:#0369a1;">
+                📋 엑셀 데이터 복사-붙여넣기 (Ctrl+C ➔ Ctrl+V로 한 번에 여러 줄 등록)
+              </span>
+              <button type="button" class="btn btn-sm btn-secondary" onclick="togglePasteBox()" style="font-size:11px;padding:1px 6px;">✕ 닫기</button>
+            </div>
+            <div style="font-size:11.5px;color:#0284c7;margin-bottom:6px;">
+              엑셀 시트에서 거래일, 구분, 금액, 적요 등을 마우스로 드래그하여 복사(Ctrl+C)한 뒤 아래에 붙여넣기(Ctrl+V)하세요.
+            </div>
+            <textarea id="bankPasteTextarea" class="form-control" rows="3" style="font-family:monospace;font-size:12px;background:#fff;" placeholder="예시 (탭 또는 쉼표 구분):
+2026-11-20	입금	450000	스마트스토어 정산금
+2026-11-21	출금	120000	국민카드 결제대금 출금"></textarea>
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;flex-wrap:wrap;gap:8px;">
+              <div style="display:flex;gap:6px;align-items:center;">
+                <span style="font-size:12px;color:#334155;font-weight:600;">기본 대상 통장:</span>
+                <select id="bankPasteTargetAccount" class="select-box" style="font-size:11.5px;height:28px;padding:2px 6px;"></select>
+              </div>
+              <button type="button" class="btn btn-sm" onclick="processBankPasteData()" style="background:#0284c7;color:#fff;font-weight:700;padding:4px 12px;">
+                📥 붙여넣은 내역 한번에 등록하기
+              </button>
+            </div>
+          </div>
+
           <div class="panel-body table-responsive">
             <table class="data-table" id="bankTxTable">
               <thead>
                 <tr>
-                  <th style="min-width:110px;">거래일시</th>
-                  <th style="min-width:150px;">통장명 (계좌번호)</th>
+                  <th style="min-width:115px;">거래일시</th>
+                  <th style="min-width:145px;">통장명 (계좌번호)</th>
                   <th style="text-align:center;min-width:80px;">구분</th>
-                  <th style="text-align:right;min-width:110px;">거래금액</th>
-                  <th style="text-align:right;min-width:120px;">거래 후 잔액</th>
-                  <th style="text-align:center;min-width:110px;">정산 판매처</th>
+                  <th style="text-align:right;min-width:115px;">거래금액</th>
+                  <th style="text-align:right;min-width:105px;">거래 후 잔액</th>
+                  <th style="text-align:center;min-width:115px;">정산 판매처</th>
                   <th style="min-width:180px;">적요 / 거래내용</th>
-                  <th style="min-width:130px;">비고</th>
-                  <th style="text-align:center;min-width:70px;">관리</th>
+                  <th style="min-width:120px;">비고</th>
+                  <th style="text-align:center;min-width:85px;">관리</th>
+                </tr>
+                <!-- ⚡ 엑셀식 실시간 한 줄 입력 행 (팝업 없이 표에서 즉시 엔터로 입력) -->
+                <tr class="quick-tx-input-row" style="background:#f0fdf4;border-bottom:2px solid #22c55e;">
+                  <td style="padding:6px 4px;">
+                    <input type="date" id="quickTxDate" class="form-control" style="font-size:11px;padding:3px 4px;height:30px;background:#fff;" title="거래일자">
+                  </td>
+                  <td style="padding:6px 4px;">
+                    <select id="quickTxBankId" class="form-control" style="font-size:11px;padding:2px 4px;height:30px;background:#fff;"></select>
+                  </td>
+                  <td style="padding:6px 4px;text-align:center;">
+                    <select id="quickTxType" class="form-control" style="font-size:11px;padding:2px 3px;height:30px;font-weight:700;color:#059669;background:#fff;" onchange="this.style.color = this.value === '입금' ? '#059669' : '#dc2626'">
+                      <option value="입금" selected>🟢 입금</option>
+                      <option value="출금">🔴 출금</option>
+                    </select>
+                  </td>
+                  <td style="padding:6px 4px;">
+                    <input type="number" id="quickTxAmount" class="form-control text-right" style="font-size:12px;padding:3px 6px;height:30px;font-weight:700;background:#fff;" placeholder="금액 입력" onkeydown="handleQuickTxKeyDown(event)">
+                  </td>
+                  <td style="padding:6px 4px;text-align:right;color:#059669;font-size:11px;font-weight:600;vertical-align:middle;">
+                    (자동계산)
+                  </td>
+                  <td style="padding:6px 4px;">
+                    <select id="quickTxMarket" class="form-control" style="font-size:11px;padding:2px 4px;height:30px;background:#fff;">
+                      <option value="AUTO">🤖 자동감지</option>
+                      <option value="스마트스토어">스마트스토어</option>
+                      <option value="쿠팡(신)">쿠팡</option>
+                      <option value="G마켓">G마켓</option>
+                      <option value="옥션">옥션</option>
+                      <option value="11번가">11번가</option>
+                      <option value="올웨이즈">올웨이즈</option>
+                      <option value="NONE">일반거래</option>
+                    </select>
+                  </td>
+                  <td style="padding:6px 4px;">
+                    <input type="text" id="quickTxSummary" class="form-control" style="font-size:11.5px;padding:3px 6px;height:30px;background:#fff;" placeholder="적요 (Enter로 추가)" oninput="autoDetectQuickTxMarket()" onkeydown="handleQuickTxKeyDown(event)">
+                  </td>
+                  <td style="padding:6px 4px;">
+                    <input type="text" id="quickTxNote" class="form-control" style="font-size:11px;padding:3px 6px;height:30px;background:#fff;" placeholder="메모" onkeydown="handleQuickTxKeyDown(event)">
+                  </td>
+                  <td style="padding:6px 4px;text-align:center;">
+                    <button type="button" class="btn btn-sm btn-primary" onclick="addQuickBankTx()" style="background:#16a34a;border-color:#16a34a;font-weight:700;padding:3px 8px;height:30px;font-size:11.5px;white-space:nowrap;" title="Enter 키를 누르면 바로 추가됩니다">
+                      ➕ 입력
+                    </button>
+                  </td>
                 </tr>
               </thead>
               <tbody id="bankTxTableBody">
@@ -1774,7 +1844,7 @@
   <!-- ⚡ 실시간 플로팅 토스트 컨테이너 -->
   <div class="radar-toast-container" id="radarToastContainer"></div>
 
-  <script src="sourcingRadar.js?v=20261124_06"></script>
-  <script src="app.js?v=20261124_06"></script>
+  <script src="sourcingRadar.js?v=20261124_07"></script>
+  <script src="app.js?v=20261124_07"></script>
 </body>
 </html>

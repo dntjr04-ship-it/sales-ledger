@@ -2256,6 +2256,32 @@ function renderSettlementView() {
     if (curVal) filterMkt.value = curVal;
   }
 
+  // ⚡ 엑셀식 실시간 바로입력 행 통장 목록 동기화
+  const quickBank = document.getElementById('quickTxBankId');
+  if (quickBank) {
+    const curVal = quickBank.value;
+    quickBank.innerHTML = AppState.bankAccounts.map(b => `
+      <option value="${b.id}">${b.bankName || b.name} (${b.biz || '공통'})</option>
+    `).join('');
+    if (curVal) quickBank.value = curVal;
+  }
+
+  const quickDate = document.getElementById('quickTxDate');
+  if (quickDate && !quickDate.value) {
+    const now = new Date();
+    quickDate.value = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  }
+
+  // 📋 엑셀 복사-붙여넣기 대상 통장 목록 동기화
+  const pasteTarget = document.getElementById('bankPasteTargetAccount');
+  if (pasteTarget) {
+    const curVal = pasteTarget.value;
+    pasteTarget.innerHTML = AppState.bankAccounts.map(b => `
+      <option value="${b.id}">${b.bankName || b.name} - ${b.accountName || b.name} (${b.accountNum})</option>
+    `).join('');
+    if (curVal) pasteTarget.value = curVal;
+  }
+
   // 통장 입출금 거래내역 장부 렌더링 동기화
   renderBankTxTable();
   if (window.feather) feather.replace();
@@ -2369,6 +2395,8 @@ function deleteBankAccount(id) {
 /**
  * 통장 입출금 거래내역 장부 렌더링
  */
+let editingBankTxId = null;
+
 function renderBankTxTable() {
   const tbody = document.getElementById('bankTxTableBody');
   const countBadge = document.getElementById('bankTxCountBadge');
@@ -2412,11 +2440,57 @@ function renderBankTxTable() {
   }
 
   if (list.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:30px;color:#94a3b8;">해당 조건의 입출금 거래내역이 없습니다. [✍️ 거래내역 직접입력] 또는 [📥 통장 엑셀 업로드]로 내역을 등록해보세요!</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:30px;color:#94a3b8;">해당 조건의 입출금 거래내역이 없습니다. 상단 빠른 입력 행에서 엑셀처럼 바로 타이핑하여 등록해보세요!</td></tr>';
     return;
   }
 
+  const markets = getKnownMarketsList();
+
   tbody.innerHTML = list.map(tx => {
+    // 인라인 수정 모드
+    if (editingBankTxId === tx.id) {
+      return `
+        <tr style="background:#fffbeb;border:2px solid #f59e0b;">
+          <td style="padding:4px 4px;">
+            <input type="date" id="inlineTxDate_${tx.id}" class="form-control" style="font-size:11px;padding:2px 4px;height:28px;" value="${tx.date || ''}">
+          </td>
+          <td style="font-size:12px;font-weight:700;">
+            ${tx.bankName || ''}
+            <div style="font-size:11px;color:#64748b;font-family:monospace;">${tx.accountNum || ''}</div>
+          </td>
+          <td style="padding:4px 4px;text-align:center;">
+            <select id="inlineTxType_${tx.id}" class="form-control" style="font-size:11px;padding:2px 3px;height:28px;font-weight:700;">
+              <option value="입금" ${tx.type === '입금' ? 'selected' : ''}>🟢 입금</option>
+              <option value="출금" ${tx.type === '출금' ? 'selected' : ''}>🔴 출금</option>
+            </select>
+          </td>
+          <td style="padding:4px 4px;">
+            <input type="number" id="inlineTxAmount_${tx.id}" class="form-control text-right" style="font-size:12px;padding:2px 4px;height:28px;font-weight:700;" value="${tx.amount || 0}">
+          </td>
+          <td style="text-align:right;color:#64748b;font-size:11px;vertical-align:middle;">
+            ${tx.balanceAfter ? formatKRW(tx.balanceAfter) : '-'}
+          </td>
+          <td style="padding:4px 4px;">
+            <select id="inlineTxMarket_${tx.id}" class="form-control" style="font-size:11px;padding:2px 3px;height:28px;">
+              <option value="AUTO" ${tx.targetMarket === 'AUTO' ? 'selected' : ''}>🤖 자동감지</option>
+              ${markets.map(m => `<option value="${m}" ${tx.targetMarket === m ? 'selected' : ''}>${m}</option>`).join('')}
+              <option value="NONE" ${tx.targetMarket === 'NONE' ? 'selected' : ''}>일반거래</option>
+            </select>
+          </td>
+          <td style="padding:4px 4px;">
+            <input type="text" id="inlineTxSummary_${tx.id}" class="form-control" style="font-size:11.5px;padding:2px 4px;height:28px;" value="${tx.summary || ''}">
+          </td>
+          <td style="padding:4px 4px;">
+            <input type="text" id="inlineTxNote_${tx.id}" class="form-control" style="font-size:11px;padding:2px 4px;height:28px;" value="${tx.note || ''}">
+          </td>
+          <td style="text-align:center;white-space:nowrap;padding:4px 4px;">
+            <button class="btn btn-sm btn-primary" onclick="saveBankTxInline(${tx.id})" style="font-size:11px;padding:2px 6px;background:#16a34a;border:none;" title="저장">💾</button>
+            <button class="btn btn-sm btn-secondary" onclick="cancelEditBankTxInline()" style="font-size:11px;padding:2px 6px;" title="취소">✕</button>
+          </td>
+        </tr>
+      `;
+    }
+
     const isDeposit = (tx.type === '입금');
     let matchedMarket = tx.targetMarket;
     if (!matchedMarket || matchedMarket === 'AUTO') {
@@ -2456,12 +2530,310 @@ function renderBankTxTable() {
           ${tx.summary || '-'}
         </td>
         <td style="font-size:12px;color:#64748b;">${tx.note || '-'}</td>
-        <td style="text-align:center;">
+        <td style="text-align:center;white-space:nowrap;">
+          <button class="btn btn-sm btn-secondary" onclick="editBankTxInline(${tx.id})" style="font-size:11px;padding:2px 6px;" title="수정">✏️</button>
           <button class="btn btn-sm btn-secondary" onclick="deleteBankTx(${tx.id})" style="font-size:11px;padding:2px 6px;color:#dc2626;" title="삭제">🗑️</button>
         </td>
       </tr>
     `;
   }).join('');
+}
+
+/**
+ * ⚡ 엑셀식 빠른 인라인 입력 관련 함수들
+ */
+function autoDetectQuickTxMarket() {
+  const summary = (document.getElementById('quickTxSummary').value || '').trim();
+  const note = (document.getElementById('quickTxNote') ? document.getElementById('quickTxNote').value || '' : '').trim();
+  const mktSelect = document.getElementById('quickTxMarket');
+  if (mktSelect && summary) {
+    const detected = detectMarketFromText(summary + ' ' + note);
+    if (detected && detected !== 'NONE') {
+      mktSelect.value = detected;
+    }
+  }
+}
+
+function handleQuickTxKeyDown(e) {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    addQuickBankTx();
+  }
+}
+
+function addQuickBankTx() {
+  const dateEl = document.getElementById('quickTxDate');
+  const bankIdEl = document.getElementById('quickTxBankId');
+  const typeEl = document.getElementById('quickTxType');
+  const amountEl = document.getElementById('quickTxAmount');
+  const marketEl = document.getElementById('quickTxMarket');
+  const summaryEl = document.getElementById('quickTxSummary');
+  const noteEl = document.getElementById('quickTxNote');
+
+  if (!amountEl || !summaryEl || !bankIdEl) return;
+
+  const amount = parseFloat(amountEl.value) || 0;
+  const summary = summaryEl.value.trim();
+  const bankId = bankIdEl.value;
+  const type = typeEl ? typeEl.value : '입금';
+  let targetMarket = marketEl ? marketEl.value : 'AUTO';
+  const note = noteEl ? noteEl.value.trim() : '';
+  const dateStr = dateEl ? dateEl.value.trim() : '';
+
+  if (!amount || amount <= 0) {
+    alert('거래금액을 입력해 주세요, 리사님!');
+    amountEl.focus();
+    return;
+  }
+  if (!summary) {
+    alert('적요(거래내용)를 입력해 주세요, 리사님!');
+    summaryEl.focus();
+    return;
+  }
+
+  const targetBank = AppState.bankAccounts.find(b => b.id == bankId);
+  if (!targetBank) {
+    alert('통장을 선택해 주세요, 리사님!');
+    return;
+  }
+
+  // 잔액 반영
+  if (type === '입금') {
+    targetBank.balance += amount;
+  } else {
+    targetBank.balance -= amount;
+  }
+
+  if (targetMarket === 'AUTO') {
+    const detected = detectMarketFromText(summary + ' ' + note);
+    if (detected && detected !== 'NONE') targetMarket = detected;
+  }
+
+  const now = new Date();
+  const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+
+  const newTx = {
+    id: Date.now(),
+    accountId: targetBank.id,
+    bankName: targetBank.bankName || targetBank.name,
+    accountName: targetBank.accountName || targetBank.name,
+    accountNum: targetBank.accountNum,
+    date: dateStr || todayStr,
+    type: type,
+    amount: amount,
+    balanceAfter: targetBank.balance,
+    summary: summary,
+    targetMarket: targetMarket,
+    note: note
+  };
+
+  AppState.bankTransactions.unshift(newTx);
+  saveStateToStorage();
+
+  // 입력칸 비우고 다음 입력을 위해 포커스 준비
+  amountEl.value = '';
+  summaryEl.value = '';
+  if (noteEl) noteEl.value = '';
+  if (marketEl) marketEl.value = 'AUTO';
+
+  renderSettlementView();
+  calculatePL();
+
+  showQuickToast(`✅ ${type} ${formatKRW(amount)} (${summary}) 등록 완료! 바로 다음 행을 입력하세요.`);
+
+  // 금액 입력창에 다시 포커스! (엑셀처럼 엔터 치며 연속 입력 가능)
+  setTimeout(() => {
+    const el = document.getElementById('quickTxAmount');
+    if (el) el.focus();
+  }, 50);
+}
+
+function togglePasteBox() {
+  const box = document.getElementById('bankPasteBoxContainer');
+  if (box) {
+    box.style.display = (box.style.display === 'none' || !box.style.display) ? 'block' : 'none';
+    if (box.style.display === 'block') {
+      const textarea = document.getElementById('bankPasteTextarea');
+      if (textarea) textarea.focus();
+    }
+  }
+}
+
+function processBankPasteData() {
+  const textarea = document.getElementById('bankPasteTextarea');
+  const targetAccSelect = document.getElementById('bankPasteTargetAccount');
+  if (!textarea) return;
+
+  const text = textarea.value.trim();
+  if (!text) {
+    alert('붙여넣을 엑셀 데이터가 없습니다, 리사님!');
+    return;
+  }
+
+  const defaultBankId = targetAccSelect ? targetAccSelect.value : (AppState.bankAccounts[0] ? AppState.bankAccounts[0].id : null);
+  const defaultBank = AppState.bankAccounts.find(b => b.id == defaultBankId) || AppState.bankAccounts[0];
+
+  if (!defaultBank) {
+    alert('먼저 등록된 통장이 필요합니다, 리사님!');
+    return;
+  }
+
+  const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+  let addedCount = 0;
+
+  lines.forEach((line, idx) => {
+    // 탭(\t) 또는 쉼표(,) 또는 2개 이상의 공백으로 열 분리
+    const cols = line.includes('\t') ? line.split('\t') : (line.includes(',') ? line.split(',') : line.split(/\s{2,}/));
+    if (cols.length === 0) return;
+
+    let date = '';
+    let type = '입금';
+    let amount = 0;
+    let summary = '';
+    let note = '';
+    let bank = defaultBank;
+
+    cols.forEach(col => {
+      const c = col.trim();
+      if (!c) return;
+      if (/^\d{4}[-./]\d{1,2}[-./]\d{1,2}/.test(c)) {
+        date = c.replace(/[/.]/g, '-');
+      } else if (c === '입금' || c === '출금') {
+        type = c;
+      } else if (/^[+-]?[\d,]+(\.00)?$/.test(c.replace(/원/g, '').trim())) {
+        const num = parseFloat(c.replace(/[^\d.-]/g, ''));
+        if (!isNaN(num) && num > 0) amount = num;
+      } else {
+        const matchedB = AppState.bankAccounts.find(b => (b.bankName && c.includes(b.bankName)) || (b.name && c.includes(b.name)));
+        if (matchedB) {
+          bank = matchedB;
+        } else if (!summary) {
+          summary = c;
+        } else if (!note) {
+          note = c;
+        } else {
+          summary += ' ' + c;
+        }
+      }
+    });
+
+    if (amount > 0) {
+      if (!date) date = new Date().toISOString().slice(0, 10);
+      if (!summary) summary = '통장 거래내역';
+
+      if (type === '입금') bank.balance += amount;
+      else bank.balance -= amount;
+
+      const detectedMkt = detectMarketFromText(summary + ' ' + note);
+
+      AppState.bankTransactions.unshift({
+        id: Date.now() + idx + Math.floor(Math.random() * 1000),
+        accountId: bank.id,
+        bankName: bank.bankName || bank.name,
+        accountName: bank.accountName || bank.name,
+        accountNum: bank.accountNum,
+        date: date,
+        type: type,
+        amount: amount,
+        balanceAfter: bank.balance,
+        summary: summary,
+        targetMarket: detectedMkt || 'AUTO',
+        note: note
+      });
+      addedCount++;
+    }
+  });
+
+  if (addedCount > 0) {
+    saveStateToStorage();
+    textarea.value = '';
+    togglePasteBox();
+    renderSettlementView();
+    calculatePL();
+    alert(`🎉 엑셀 데이터 ${addedCount}건이 통장 장부에 한 번에 쏙 등록되었습니다, 리사님!`);
+  } else {
+    alert('유효한 금액이 포함된 행을 찾지 못했습니다. 날짜, 금액, 적요 형식을 확인해주세요.');
+  }
+}
+
+function editBankTxInline(id) {
+  editingBankTxId = id;
+  renderBankTxTable();
+}
+
+function cancelEditBankTxInline() {
+  editingBankTxId = null;
+  renderBankTxTable();
+}
+
+function saveBankTxInline(id) {
+  const tx = AppState.bankTransactions.find(t => t.id == id);
+  if (!tx) return;
+
+  const dateEl = document.getElementById(`inlineTxDate_${id}`);
+  const typeEl = document.getElementById(`inlineTxType_${id}`);
+  const amountEl = document.getElementById(`inlineTxAmount_${id}`);
+  const marketEl = document.getElementById(`inlineTxMarket_${id}`);
+  const summaryEl = document.getElementById(`inlineTxSummary_${id}`);
+  const noteEl = document.getElementById(`inlineTxNote_${id}`);
+
+  if (!amountEl || !summaryEl) return;
+
+  const date = dateEl ? dateEl.value.trim() : tx.date;
+  const type = typeEl ? typeEl.value : tx.type;
+  const amount = parseFloat(amountEl.value) || 0;
+  const market = marketEl ? marketEl.value : tx.targetMarket;
+  const summary = summaryEl.value.trim();
+  const note = noteEl ? noteEl.value.trim() : '';
+
+  if (!amount || amount <= 0 || !summary) {
+    alert('금액과 적요를 입력해주세요!');
+    return;
+  }
+
+  // 잔액 차이 보정
+  const oldEffect = (tx.type === '입금' ? tx.amount : -tx.amount);
+  const newEffect = (type === '입금' ? amount : -amount);
+  const diff = newEffect - oldEffect;
+
+  const bank = AppState.bankAccounts.find(b => b.id == tx.accountId);
+  if (bank) {
+    bank.balance += diff;
+  }
+
+  tx.date = date;
+  tx.type = type;
+  tx.amount = amount;
+  tx.targetMarket = market;
+  tx.summary = summary;
+  tx.note = note;
+  if (bank) tx.balanceAfter = bank.balance;
+
+  editingBankTxId = null;
+  saveStateToStorage();
+  renderSettlementView();
+  calculatePL();
+  showQuickToast('수정 내용이 저장되었습니다!');
+}
+
+function showQuickToast(msg) {
+  let toastContainer = document.getElementById('radarToastContainer');
+  if (!toastContainer) {
+    toastContainer = document.createElement('div');
+    toastContainer.id = 'radarToastContainer';
+    toastContainer.className = 'radar-toast-container';
+    document.body.appendChild(toastContainer);
+  }
+  const toast = document.createElement('div');
+  toast.className = 'radar-toast';
+  toast.style.cssText = 'background:#1e293b;color:#fff;padding:10px 16px;border-radius:10px;margin-bottom:8px;font-size:12.5px;box-shadow:0 4px 12px rgba(0,0,0,0.15);display:flex;align-items:center;gap:8px;z-index:9999;';
+  toast.innerHTML = msg;
+  toastContainer.appendChild(toast);
+  setTimeout(() => {
+    toast.style.opacity = '0';
+    toast.style.transition = 'opacity 0.4s ease';
+    setTimeout(() => toast.remove(), 400);
+  }, 2500);
 }
 
 function filterBankTxByMarket(marketName) {
@@ -3902,6 +4274,14 @@ window.getMarketDepositsFromBank = getMarketDepositsFromBank;
 window.openBankUploadModal = openBankUploadModal;
 window.closeBankUploadModal = closeBankUploadModal;
 window.handleBankFileSelected = handleBankFileSelected;
+window.autoDetectQuickTxMarket = autoDetectQuickTxMarket;
+window.handleQuickTxKeyDown = handleQuickTxKeyDown;
+window.addQuickBankTx = addQuickBankTx;
+window.togglePasteBox = togglePasteBox;
+window.processBankPasteData = processBankPasteData;
+window.editBankTxInline = editBankTxInline;
+window.cancelEditBankTxInline = cancelEditBankTxInline;
+window.saveBankTxInline = saveBankTxInline;
 
 // 4. 판관비 & 순자산
 window.openCustomExpenseModal = openCustomExpenseModal;

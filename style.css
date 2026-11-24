@@ -1740,4 +1740,24 @@ body {
   font-weight: 800;
 }
 
+/* ⚡ 통장 거래내역 엑셀식 인라인 빠른 입력 스타일 */
+.quick-tx-input-row input, .quick-tx-input-row select {
+  border: 1px solid #86efac;
+  border-radius: 6px;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.04);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.quick-tx-input-row input:focus, .quick-tx-input-row select:focus {
+  border-color: #16a34a;
+  outline: none;
+  box-shadow: 0 0 0 2.5px rgba(22, 163, 74, 0.25);
+}
+
+.quick-tx-input-row button:hover {
+  background: #15803d !important;
+  transform: translateY(-1px);
+}
+
+
 
