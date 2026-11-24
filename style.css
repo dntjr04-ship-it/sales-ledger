@@ -131,6 +131,8 @@ body {
 
 .btn-group-toggle {
   display: inline-flex;
+  flex-wrap: nowrap;
+  flex-shrink: 0;
   background: #e2e8f0;
   padding: 4px;
   border-radius: 8px;
@@ -138,8 +140,17 @@ body {
   align-items: center;
 }
 
+.toggle-btn,
+.toggle-btn * {
+  white-space: nowrap !important;
+  word-break: keep-all !important;
+}
+
 .toggle-btn {
-  white-space: nowrap;
+  white-space: nowrap !important;
+  word-break: keep-all !important;
+  flex-shrink: 0 !important;
+  min-width: max-content !important;
   border: none;
   background: transparent;
   padding: 8px 18px;
@@ -182,7 +193,7 @@ body {
   min-width: 60px;
   padding: 7px 6px;
   font-size: 12px;
-  white-space: nowrap;
+  white-space: nowrap !important;
 }
 
 .btn-biz-manage:hover {
@@ -194,9 +205,11 @@ body {
 #ordersViewToggleGroup,
 #cardTxToggleGroup,
 #plTabToggleGroup {
-  display: inline-flex;
+  display: inline-flex !important;
+  flex-wrap: nowrap !important;
+  flex-shrink: 0 !important;
   background: #eef2f6;
-  padding: 4px;
+  padding: 5px;
   border-radius: 10px;
   gap: 6px;
 }
@@ -204,10 +217,13 @@ body {
 #ordersViewToggleGroup .toggle-btn,
 #cardTxToggleGroup .toggle-btn,
 #plTabToggleGroup .toggle-btn {
-  padding: 9px 20px;
-  font-size: 13.5px;
+  padding: 9px 22px !important;
+  font-size: 14px !important;
   font-weight: 600;
-  white-space: nowrap;
+  white-space: nowrap !important;
+  word-break: keep-all !important;
+  flex-shrink: 0 !important;
+  min-width: max-content !important;
   border-radius: 8px;
   min-height: 38px;
 }

@@ -1814,6 +1814,41 @@ function getHolderTheme(holder, fallbackTheme) {
   return assigned;
 }
 
+/**
+ * 💳 비용 결제수단이 카드인 경우 매칭되는 카드 설정 및 카드키 반환
+ */
+function matchExpenseCard(exp) {
+  const method = (exp.paymentMethod || '').trim();
+  if (!method) return null;
+
+  // 1. 등록된 카드 세팅과 직접 일치 (카드명 또는 '카드명 (명의자)')
+  for (const s of (AppState.cardSettings || [])) {
+    const cardKey = s.holder ? `${s.name} (${s.holder})` : s.name;
+    if (method === cardKey || method === s.name) {
+      return { setting: s, cardKey };
+    }
+  }
+
+  // 2. 부분 일치 검색 (예: '국민' -> 국민카드, '삼성' -> 삼성카드, '신한' -> 신한카드, '우리' -> 우리카드, '스마일' -> 스마일카드)
+  for (const s of (AppState.cardSettings || [])) {
+    if (method.includes(s.name) || s.name.includes(method)) {
+      const cardKey = s.holder ? `${s.name} (${s.holder})` : s.name;
+      return { setting: s, cardKey };
+    }
+  }
+
+  // 3. '카드'라는 단어가 포함된 경우 (예: '신용카드', '법인카드', '카드')
+  if (method.includes('카드') || method.toLowerCase().includes('card')) {
+    const s = (AppState.cardSettings || [])[0];
+    if (s) {
+      const cardKey = s.holder ? `${s.name} (${s.holder})` : s.name;
+      return { setting: s, cardKey };
+    }
+  }
+
+  return null;
+}
+
 function renderCardsView() {
   const grid = document.getElementById('cardsDetailGrid');
   const tbody = document.getElementById('cardTransactionsTableBody');
@@ -1878,6 +1913,65 @@ function renderCardsView() {
     }
   });
 
+  // ⭐ 2-B. 비용(지출 장부) 중 결제수단이 카드인 항목 집계 및 카드 잔액/결제예정에 반영!
+  const cardExpenses = [];
+  (AppState.customExpenses || []).forEach(exp => {
+    const bizOk = (AppState.currentBizFilter === 'ALL' || exp.biz === 'ALL' || exp.biz === AppState.currentBizFilter);
+    if (!bizOk) return;
+
+    const matched = matchExpenseCard(exp);
+    if (matched && exp.amount > 0) {
+      const cardKey = matched.cardKey;
+      if (!cardMap[cardKey]) {
+        const s = matched.setting;
+        const theme = getHolderTheme(s.holder, s.theme);
+        cardMap[cardKey] = {
+          name: s.name,
+          holder: s.holder || '명의미지정',
+          displayName: cardKey,
+          payDay: s.payDay || 14,
+          billingDesc: s.billingDesc || '전월 1일 ~ 전월 말일',
+          theme: theme,
+          note: s.note || '',
+          settingId: s.id,
+          total: 0,
+          currentDue: 0,
+          nextDue: 0,
+          count: 0,
+          platforms: new Set()
+        };
+      }
+
+      const entry = cardMap[cardKey];
+      entry.total += exp.amount;
+      entry.count += 1;
+      entry.platforms.add(`비용(${exp.category})`);
+
+      const split = calcCardBillingSplit(exp.date || exp.month, entry);
+      if (split === 'CURRENT') {
+        entry.currentDue += exp.amount;
+      } else {
+        entry.nextDue += exp.amount;
+      }
+
+      cardExpenses.push({
+        isExpense: true,
+        id: exp.id,
+        paymentCard: matched.setting.name,
+        cardHolder: matched.setting.holder,
+        cardKey: cardKey,
+        split: split,
+        sourcingPlatform: `💸 비용(${exp.category})`,
+        productName: `[${exp.category}] ${exp.title}`,
+        paymentDate: exp.date || exp.month,
+        purchaseCost: exp.amount,
+        sourcingOrderNo: exp.paymentMethod || '카드결제',
+        supplierName: exp.biz || '공통',
+        note: exp.note || ''
+      });
+    }
+  });
+
   const cards = Object.values(cardMap);
 
   // 3. 카드 그리드 렌더링 (불필요한 누적/주요처/비고 제거 & 명의자별 통일 테마 적용 ⭐)
@@ -1913,7 +2007,7 @@ function renderCardsView() {
               청구기간: ${c.billingDesc}
             </div>
 
-            <!-- 당월 / 다음월 결제예정금액 분리 박스 -->
+            <!-- 당월 / 다음월 결제예정금액 분리 박스 (주문원가 + 카드비용 모두 반영) -->
             <div class="credit-box-dues">
               <div class="due-item">
                 <span class="due-label">💳 당월 결제예정</span>
@@ -1930,16 +2024,45 @@ function renderCardsView() {
     }
   }
 
-  // 4. 하단 결제 내역 테이블 렌더링
+  // 4. 하단 결제 내역 테이블 렌더링 (주문 결제 + 비용 카드결제 통합)
   if (tbody) {
-    let paidOrders = allOrders.filter(o => o.purchaseCost > 0);
+    let combinedTx = [];
+
+    // 주문 결제 항목 추가
+    allOrders.filter(o => o.purchaseCost > 0 && o.paymentCard).forEach(o => {
+      const k = o.cardHolder ? `${o.paymentCard} (${o.cardHolder})` : o.paymentCard;
+      const cSetting = cardMap[k];
+      const split = calcCardBillingSplit(o.paymentDate || o.orderDate, cSetting);
+      combinedTx.push({
+        isExpense: false,
+        paymentCard: o.paymentCard,
+        cardHolder: o.cardHolder,
+        cardKey: k,
+        split: split,
+        sourcingPlatform: o.sourcingPlatform || '-',
+        productName: o.productName,
+        paymentDate: o.paymentDate || o.orderDate,
+        purchaseCost: o.purchaseCost,
+        sourcingOrderNo: o.sourcingOrderNo || '-',
+        supplierName: o.supplierName || o.supplierBiz || '-'
+      });
+    });
+
+    // 비용 카드결제 항목 추가
+    cardExpenses.forEach(ce => {
+      combinedTx.push(ce);
+    });
+
+    // 날짜 최신순 정렬
+    combinedTx.sort((a, b) => {
+      const dateA = a.paymentDate || '';
+      const dateB = b.paymentDate || '';
+      return dateB.localeCompare(dateA);
+    });
 
     // 선택된 카드 필터
     if (AppState.selectedCardKey) {
-      paidOrders = paidOrders.filter(o => {
-        const k = o.cardHolder ? `${o.paymentCard} (${o.cardHolder})` : o.paymentCard;
-        return k === AppState.selectedCardKey;
-      });
+      combinedTx = combinedTx.filter(t => t.cardKey === AppState.selectedCardKey);
       const badge = document.getElementById('cardSelectedBadge');
       const resetBtn = document.getElementById('btnResetCardFilter');
       if (badge) {
@@ -1956,39 +2079,40 @@ function renderCardsView() {
 
     // 당월/다음월 탭 필터
     if (AppState.selectedCardTxTab !== 'ALL') {
-      paidOrders = paidOrders.filter(o => {
-        const k = o.cardHolder ? `${o.paymentCard} (${o.cardHolder})` : o.paymentCard;
-        const cSetting = cardMap[k];
-        const split = calcCardBillingSplit(o.paymentDate || o.orderDate, cSetting);
-        return split === AppState.selectedCardTxTab;
-      });
+      combinedTx = combinedTx.filter(t => t.split === AppState.selectedCardTxTab);
     }
 
-    if (paidOrders.length === 0) {
+    if (combinedTx.length === 0) {
       tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:30px;color:#94a3b8;">해당 조건의 결제 내역이 없습니다.</td></tr>';
     } else {
-      tbody.innerHTML = paidOrders.map(o => {
-        const k = o.cardHolder ? `${o.paymentCard} (${o.cardHolder})` : o.paymentCard;
-        const cSetting = cardMap[k];
-        const split = calcCardBillingSplit(o.paymentDate || o.orderDate, cSetting);
+      tbody.innerHTML = combinedTx.map(t => {
+        const platformBadge = t.isExpense
+          ? `<span class="badge" style="background:#fee2e2;color:#991b1b;font-weight:700;">${escapeHtml(t.sourcingPlatform)}</span>`
+          : escapeHtml(t.sourcingPlatform || '-');
+
+        const nameDisplay = t.isExpense
+          ? `<strong style="color:#1e3a8a;">${escapeHtml(t.productName)}</strong>${t.note ? `<div style="font-size:11px;color:#64748b;">📝 ${escapeHtml(t.note)}</div>` : ''}`
+          : `<span title="${escapeHtml(t.productName)}">${escapeHtml(t.productName)}</span>`;
 
         return `
-          <tr>
+          <tr style="${t.isExpense ? 'background:#fffaf0;' : ''}">
             <td>
-              <strong>${o.paymentCard}</strong>
-              <div style="font-size:11px;color:#4f46e5;font-weight:700;">명의자: ${o.cardHolder || '명의미지정'}</div>
+              <strong>${escapeHtml(t.paymentCard)}</strong>
+              <div style="font-size:11px;color:#4f46e5;font-weight:700;">명의자: ${escapeHtml(t.cardHolder || '명의미지정')}</div>
             </td>
             <td style="text-align:center;">
-              <span class="badge" style="background:${split === 'CURRENT' ? '#ecfdf5;color:#059669;border:1px solid #a7f3d0;' : '#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;'}font-weight:700;font-size:11px;">
-                ${split === 'CURRENT' ? '🟢 당월 청구' : '🔵 다음월 청구'}
+              <span class="badge" style="background:${t.split === 'CURRENT' ? '#ecfdf5;color:#059669;border:1px solid #a7f3d0;' : '#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;'}font-weight:700;font-size:11px;">
+                ${t.split === 'CURRENT' ? '🟢 당월 청구' : '🔵 다음월 청구'}
               </span>
             </td>
-            <td>${o.sourcingPlatform || '-'}</td>
-            <td style="max-width:260px;text-overflow:ellipsis;overflow:hidden;white-space:nowrap;" title="${o.productName}">${o.productName}</td>
-            <td>${formatOrderDateOnly(o.paymentDate || o.orderDate)}</td>
-            <td style="text-align:right;"><strong class="text-danger">${formatKRW(o.purchaseCost)}</strong></td>
-            <td style="font-size:12px;">${o.sourcingOrderNo || '-'}</td>
-            <td>${o.supplierName || o.supplierBiz || '-'}</td>
+            <td>${platformBadge}</td>
+            <td style="max-width:260px;text-overflow:ellipsis;overflow:hidden;white-space:nowrap;">
+              ${nameDisplay}
+            </td>
+            <td>${formatOrderDateOnly(t.paymentDate)}</td>
+            <td style="text-align:right;"><strong class="text-danger">${formatKRW(t.purchaseCost)}</strong></td>
+            <td style="font-size:12px;">${escapeHtml(t.sourcingOrderNo || '-')}</td>
+            <td>${escapeHtml(t.supplierName || '-')}</td>
           </tr>
         `;
       }).join('');
@@ -3735,31 +3859,13 @@ function calculatePL() {
     return bizMatch && yearMatch;
   });
 
-  const placeholder = document.getElementById('plDynamicExpensePlaceholder');
-  if (placeholder) {
-    if (filteredExpenses.length === 0) {
-      placeholder.style.display = 'none';
-      placeholder.innerHTML = '';
-    } else {
-      placeholder.style.display = 'table-row-group';
-      placeholder.innerHTML = filteredExpenses.map(exp => {
-        customExpTotal += (exp.amount || 0);
-        return `
-          <tr class="pl-dynamic-exp-row" style="background:#fffaf0;">
-            <td class="pl-indent">
-              <span class="badge" style="background:#fee2e2;color:#991b1b;font-size:10.5px;margin-right:6px;">${escapeHtml(exp.category || '기타')}</span>
-              ${escapeHtml(exp.title)}
-              <span style="font-size:11px;color:#64748b;margin-left:4px;">(${escapeHtml(exp.date || '')} · ${escapeHtml(exp.biz || 'ALL')})</span>
-            </td>
-            <td style="font-size:11px;color:#94a3b8;">${escapeHtml(exp.note || exp.paymentMethod || '')}</td>
-            <td class="text-right text-danger">-${formatKRW(exp.amount || 0)}</td>
-          </tr>
-        `;
-      }).join('');
-    }
-  } else {
-    filteredExpenses.forEach(exp => { customExpTotal += (exp.amount || 0); });
-  }
+  filteredExpenses.forEach(exp => { customExpTotal += (exp.amount || 0); });
+
+  // ⭐ 요청 반영: 손익계산서에서는 비용 항목들을 일일이 나열하지 않고 1줄 합계로만 깔끔하게 표시!
+  const expSumEl = document.getElementById('plCustomExpenseSum');
+  const expCountEl = document.getElementById('plCustomExpenseCount');
+  if (expSumEl) expSumEl.textContent = '-' + formatKRW(customExpTotal);
+  if (expCountEl) expCountEl.textContent = `(${filteredExpenses.length}건 등록)`;
 
   const otherExpenseInput = document.getElementById('inputOtherExpense');
   const otherExpense = otherExpenseInput ? parseFloat(otherExpenseInput.value) || 0 : 50000;
@@ -3939,6 +4045,20 @@ function populatePlYears() {
 }
 
 /**
+ * 💳 비용 등록/수정용 결제수단 자동완성 datalist 동기화
+ */
+function populateCardPayMethods() {
+  const datalist = document.getElementById('cardPayMethodList');
+  if (!datalist) return;
+  const methods = new Set(['통장이체', '현금', '체크카드']);
+  (AppState.cardSettings || []).forEach(s => {
+    if (s.name) methods.add(s.name);
+    if (s.holder) methods.add(`${s.name} (${s.holder})`);
+  });
+  datalist.innerHTML = Array.from(methods).map(m => `<option value="${escapeHtml(m)}">`).join('');
+}
+
+/**
  * 비용 뷰 초기화 (기본 일자, 사업자 목록 동기화, 테이블 렌더링)
  */
 function initExpenseView() {
@@ -3949,6 +4069,7 @@ function initExpenseView() {
 
   populateBusinessSelects();
   populatePlYears();
+  populateCardPayMethods();
   renderExpenseTable();
 }
 
@@ -4103,7 +4224,7 @@ function renderExpenseInlineEditRow(exp) {
         <input type="number" id="inlineExpAmt_${exp.id}" class="form-control text-right" value="${exp.amount || 0}" style="font-size:12px;padding:2px 6px;height:28px;font-weight:700;background:#fff;">
       </td>
       <td style="padding:4px;">
-        <input type="text" id="inlineExpPay_${exp.id}" class="form-control" value="${escapeHtml(exp.paymentMethod || '')}" style="font-size:11.5px;padding:2px 6px;height:28px;background:#fff;">
+        <input type="text" id="inlineExpPay_${exp.id}" list="cardPayMethodList" class="form-control" value="${escapeHtml(exp.paymentMethod || '')}" style="font-size:11.5px;padding:2px 6px;height:28px;background:#fff;" placeholder="카드/통장/현금">
       </td>
       <td style="padding:4px;">
         <input type="text" id="inlineExpNote_${exp.id}" class="form-control" value="${escapeHtml(exp.note || '')}" style="font-size:11px;padding:2px 6px;height:28px;background:#fff;">

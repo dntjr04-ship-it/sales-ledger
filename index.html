@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>리사님의 만능 매출장부 & 경영 비서</title>
-  <link rel="stylesheet" href="style.css?v=20261124_12">
+  <link rel="stylesheet" href="style.css?v=20261124_14">
   <!-- Chart.js for beautiful charts -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <!-- Feather Icons for clean icons -->
@@ -264,15 +264,15 @@
       <section class="content-view" id="ordersView">
         <!-- 뷰 모드 전환 토글 바 (상세 주문장 / 일별 집계표 / 월별 집계표) -->
         <div class="orders-view-switch-bar" style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px;background:#fff;padding:10px 16px;border-radius:12px;border:1px solid #e2e8f0;box-shadow:0 1px 3px rgba(0,0,0,0.03);flex-wrap:wrap;">
-          <div class="btn-group-toggle" id="ordersViewToggleGroup">
+          <div class="btn-group-toggle" id="ordersViewToggleGroup" style="flex-shrink:0;">
             <button class="toggle-btn active" id="btnViewOrdersList" onclick="switchOrdersViewTab('list')">
-              <i data-feather="list" style="width:14px;height:14px;vertical-align:middle;margin-right:4px;"></i> 📋 전체 상세 주문장
+              📋 전체 상세 주문장
             </button>
             <button class="toggle-btn" id="btnViewOrdersDaily" onclick="switchOrdersViewTab('daily')">
-              <i data-feather="calendar" style="width:14px;height:14px;vertical-align:middle;margin-right:4px;"></i> 📅 일별 집계표
+              📅 일별 집계표
             </button>
             <button class="toggle-btn" id="btnViewOrdersMonthly" onclick="switchOrdersViewTab('monthly')">
-              <i data-feather="trending-up" style="width:14px;height:14px;vertical-align:middle;margin-right:4px;"></i> 📆 월별 집계표
+              📆 월별 집계표
             </button>
           </div>
           <div style="font-size:12.5px;color:#64748b;" id="ordersViewTabDesc">
@@ -473,7 +473,7 @@
               </button>
             </div>
             <!-- 결제 탭: 전체 / 당월결제 / 다음월결제 -->
-            <div class="btn-group-toggle" id="cardTxToggleGroup">
+            <div class="btn-group-toggle" id="cardTxToggleGroup" style="flex-shrink:0;">
               <button class="toggle-btn active" id="btnCardTxAll" onclick="setCardTxTab('ALL')">전체 결제</button>
               <button class="toggle-btn" id="btnCardTxCurrent" onclick="setCardTxTab('CURRENT')">💳 당월 결제예정</button>
               <button class="toggle-btn" id="btnCardTxNext" onclick="setCardTxTab('NEXT')">📆 다음월 결제예정</button>
@@ -761,7 +761,7 @@
       <section class="content-view" id="plView">
         <!-- 뷰 모드 전환 토글 바 (비용 관리 / 손익계산서 & 순자산) -->
         <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:18px;background:#fff;padding:12px 18px;border-radius:12px;border:1px solid #e2e8f0;box-shadow:0 1px 3px rgba(0,0,0,0.03);flex-wrap:wrap;">
-          <div class="btn-group-toggle" id="plTabToggleGroup">
+          <div class="btn-group-toggle" id="plTabToggleGroup" style="flex-shrink:0;">
             <button class="toggle-btn active" id="btnTabExpense" onclick="switchPlTab('expense')">
               💸 비용 관리 (일자별 지출 장부)
             </button>
@@ -880,7 +880,8 @@
                       <input type="number" id="quickExpAmount" class="form-control text-right" style="font-size:12px;padding:3px 6px;height:30px;font-weight:700;background:#fff;" placeholder="금액" onkeydown="handleQuickExpKeyDown(event)">
                     </td>
                     <td style="padding:6px 4px;">
-                      <input type="text" id="quickExpPayMethod" class="form-control" style="font-size:11.5px;padding:3px 6px;height:30px;background:#fff;" placeholder="카드/통장/현금" onkeydown="handleQuickExpKeyDown(event)">
+                      <input type="text" id="quickExpPayMethod" list="cardPayMethodList" class="form-control" style="font-size:11.5px;padding:3px 6px;height:30px;background:#fff;" placeholder="카드/통장/현금" onkeydown="handleQuickExpKeyDown(event)">
+                      <datalist id="cardPayMethodList"></datalist>
                     </td>
                     <td style="padding:6px 4px;">
                       <input type="text" id="quickExpNote" class="form-control" style="font-size:11px;padding:3px 6px;height:30px;background:#fff;" placeholder="메모" onkeydown="handleQuickExpKeyDown(event)">
@@ -984,8 +985,19 @@
                     <td colspan="2"><strong>4. 판매비 및 일반관리비 (SG&A)</strong></td>
                     <td class="text-right text-danger"><strong id="plExpenseTotal">-0원</strong></td>
                   </tr>
-                  <!-- 비용 탭에서 등록된 세부 지출 항목들이 선택된 년도에 맞게 동적으로 표시 -->
-                  <tr id="plDynamicExpensePlaceholder" style="display:none;"></tr>
+                  <!-- 비용 탭에서 등록된 지출 합계 (요청: 세부내역 없이 합계만 깔끔하게 표시 ⭐) -->
+                  <tr>
+                    <td class="pl-indent">
+                      <strong>판관비(지출 장부) 합계</strong>
+                      <span id="plCustomExpenseCount" style="font-size:11.5px;color:#64748b;margin-left:6px;font-weight:normal;">(0건 등록)</span>
+                    </td>
+                    <td style="text-align:right;">
+                      <button type="button" class="btn btn-xs btn-secondary" onclick="switchPlTab('expense')" style="font-size:11px;padding:2px 8px;border-radius:4px;">
+                        상세보기 ➔
+                      </button>
+                    </td>
+                    <td class="text-right text-danger"><strong id="plCustomExpenseSum">-0원</strong></td>
+                  </tr>
                   <tr>
                     <td class="pl-indent">기타 잡비 & 포장 부자재 (추정치)</td>
                     <td><input type="number" id="inputOtherExpense" value="50000" class="input-inline" onchange="calculatePL()"></td>
@@ -2103,7 +2115,7 @@
   <!-- ⚡ 실시간 플로팅 토스트 컨테이너 -->
   <div class="radar-toast-container" id="radarToastContainer"></div>
 
-  <script src="sourcingRadar.js?v=20261124_12"></script>
-  <script src="app.js?v=20261124_12"></script>
+  <script src="sourcingRadar.js?v=20261124_14"></script>
+  <script src="app.js?v=20261124_14"></script>
 </body>
 </html>
