@@ -2201,18 +2201,24 @@ function renderSettlementView() {
     }
   }
 
-  // 등록 통장 카드 목록 렌더링
+  // 등록 통장 카드 목록 렌더링 (⭐ 리사님 피드백: 사업자 선택 탭과 무관하게 등록된 모든 통장을 항상 보여주어 통장이 사라지는 혼란 완전 방지!)
   const bankList = document.getElementById('bankAccountsList');
   if (bankList) {
-    if (filteredBanks.length === 0) {
+    const displayBanks = AppState.bankAccounts;
+    if (displayBanks.length === 0) {
       bankList.innerHTML = '<div style="padding:24px;text-align:center;color:#94a3b8;">등록된 통장이 없습니다. [+ 통장 등록] 버튼으로 추가해보세요!</div>';
     } else {
-      bankList.innerHTML = filteredBanks.map(b => `
+      bankList.innerHTML = displayBanks.map(b => {
+        const isCurrentBiz = AppState.currentBizFilter === 'ALL' || b.biz === AppState.currentBizFilter || b.biz === '개인' || b.biz === '공통';
+        const bizBadgeBg = b.biz === '사업자A' ? '#eef2ff' : (b.biz === '사업자B' ? '#ecfdf5' : '#fef3c7');
+        const bizBadgeColor = b.biz === '사업자A' ? '#4f46e5' : (b.biz === '사업자B' ? '#059669' : '#d97706');
+
+        return `
         <div class="bank-account-card" style="display:flex;justify-content:space-between;align-items:center;padding:14px 16px;background:#fff;border:1px solid #e2e8f0;border-radius:12px;box-shadow:0 1px 3px rgba(0,0,0,0.04);margin-bottom:10px;">
           <div>
             <div class="bank-name" style="font-weight:700;font-size:14px;color:#1e293b;display:flex;align-items:center;gap:6px;">
               <span>🏦 ${b.bankName || b.name}</span>
-              <span class="badge" style="background:#eef2ff;color:#4f46e5;font-size:11px;">${b.biz}</span>
+              <span class="badge" style="background:${bizBadgeBg};color:${bizBadgeColor};font-size:11px;font-weight:700;">${b.biz || '공통'}</span>
             </div>
             <div style="font-size:12.5px;color:#475569;margin-top:3px;font-weight:600;">${b.accountName || b.name}</div>
             <div class="bank-num" style="font-size:12px;color:#64748b;margin-top:2px;font-family:monospace;">${b.accountNum}</div>
@@ -2226,7 +2232,8 @@ function renderSettlementView() {
             </div>
           </div>
         </div>
-      `).join('');
+        `;
+      }).join('');
     }
   }
 
