@@ -6,7 +6,11 @@
 // 전역 상태 관리
 const AppState = {
   rawOrders: [],              // 전체 주문 데이터
-  currentBizFilter: 'ALL',    // 'ALL', '사업자A', '사업자B'
+  currentBizFilter: 'ALL',    // 'ALL', '사업자A', '사업자B' 또는 사용자 등록 사업자명
+  businesses: [               // 🏢 등록 사업자 목록
+    { id: 'biz_a', name: '사업자A', owner: '강우석', regNum: '', desc: '스마트스토어 / 쿠팡 주력' },
+    { id: 'biz_b', name: '사업자B', owner: '강우석', regNum: '', desc: '오픈마켓 / 도매매 주력' }
+  ],
   searchQuery: '',            // 검색어
   selectedMarket: 'ALL',      // 판매사이트 필터
   selectedSourcing: 'ALL',    // 소싱플랫폼 필터
@@ -218,19 +222,113 @@ function switchNav(targetId) {
 }
 
 /**
+ * HTML 특수문자 이스케이프 헬퍼
+ */
+function escapeHtml(str) {
+  if (str === null || str === undefined) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+/**
+ * 🏢 등록 사업자 배지 색상 팔레트 생성기
+ * (어떤 사업자명이 등록되어도 고유하고 예쁜 파스텔 배지 색상을 자동 배정)
+ */
+function getBizBadgeStyle(bizName) {
+  const palette = [
+    { bg: '#e0e7ff', color: '#3730a3' }, // Indigo (사업자A 기본)
+    { bg: '#fef3c7', color: '#92400e' }, // Amber (사업자B 기본)
+    { bg: '#ecfdf5', color: '#065f46' }, // Emerald
+    { bg: '#f3e8ff', color: '#6b21a8' }, // Purple
+    { bg: '#ffe4e6', color: '#9f1239' }, // Rose
+    { bg: '#cffafe', color: '#155e75' }, // Cyan
+    { bg: '#fef9c3', color: '#854d0e' }, // Yellow
+    { bg: '#e2e8f0', color: '#334155' }  // Slate (공통)
+  ];
+
+  if (!bizName || bizName === '공통') return palette[7];
+  if (bizName === '사업자A') return palette[0];
+  if (bizName === '사업자B') return palette[1];
+
+  let hash = 0;
+  for (let i = 0; i < bizName.length; i++) {
+    hash = bizName.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  const index = Math.abs(hash) % (palette.length - 1);
+  return palette[index];
+}
+
+/**
+ * 사이드바 사업자 스위처 버튼 동적 렌더링
+ */
+function renderBusinessSwitcher() {
+  const group = document.getElementById('businessFilterGroup');
+  if (!group) return;
+
+  const current = AppState.currentBizFilter || 'ALL';
+  let html = `<button class="toggle-btn ${current === 'ALL' ? 'active' : ''}" data-biz="ALL" onclick="setBusinessFilter('ALL')">통합 전체</button>`;
+
+  (AppState.businesses || []).forEach(b => {
+    const isActive = (current === b.name);
+    html += `<button class="toggle-btn ${isActive ? 'active' : ''}" data-biz="${escapeHtml(b.name)}" onclick="setBusinessFilter('${escapeHtml(b.name)}')">${escapeHtml(b.name)}</button>`;
+  });
+
+  group.innerHTML = html;
+}
+
+/**
+ * 모든 폼의 사업자 선택 드롭다운(<select>) 동기화
+ */
+function populateBusinessSelects() {
+  const bizList = AppState.businesses || [];
+
+  // 1. 주문 모달 (#formBiz)
+  const formBiz = document.getElementById('formBiz');
+  if (formBiz) {
+    const curVal = formBiz.value;
+    formBiz.innerHTML = bizList.map(b => `<option value="${escapeHtml(b.name)}">${escapeHtml(b.name)}</option>`).join('');
+    if (curVal && bizList.some(b => b.name === curVal)) formBiz.value = curVal;
+    else if (bizList.length > 0) formBiz.value = (AppState.currentBizFilter !== 'ALL' && bizList.some(b => b.name === AppState.currentBizFilter)) ? AppState.currentBizFilter : bizList[0].name;
+  }
+
+  // 2. 통장 모달 (#formBankBiz)
+  const formBankBiz = document.getElementById('formBankBiz');
+  if (formBankBiz) {
+    const curVal = formBankBiz.value;
+    formBankBiz.innerHTML = bizList.map(b => `<option value="${escapeHtml(b.name)}">${escapeHtml(b.name)}</option>`).join('');
+    if (curVal && bizList.some(b => b.name === curVal)) formBankBiz.value = curVal;
+    else if (bizList.length > 0) formBankBiz.value = (AppState.currentBizFilter !== 'ALL' && bizList.some(b => b.name === AppState.currentBizFilter)) ? AppState.currentBizFilter : bizList[0].name;
+  }
+
+  // 3. 지출 모달 (#formExpBiz)
+  const formExpBiz = document.getElementById('formExpBiz');
+  if (formExpBiz) {
+    const curVal = formExpBiz.value;
+    formExpBiz.innerHTML = `<option value="ALL">전체 공통 (ALL)</option>` +
+      bizList.map(b => `<option value="${escapeHtml(b.name)}">${escapeHtml(b.name)}</option>`).join('');
+    if (curVal) formExpBiz.value = curVal;
+  }
+
+  // 4. 자산 모달 (#formAssetBiz)
+  const formAssetBiz = document.getElementById('formAssetBiz');
+  if (formAssetBiz) {
+    const curVal = formAssetBiz.value;
+    formAssetBiz.innerHTML = `<option value="ALL">전체 공통 (ALL)</option>` +
+      bizList.map(b => `<option value="${escapeHtml(b.name)}">${escapeHtml(b.name)}</option>`).join('');
+    if (curVal) formAssetBiz.value = curVal;
+  }
+}
+
+/**
  * 사업자 필터 스위처
  */
 function setBusinessFilter(biz) {
   AppState.currentBizFilter = biz;
-
-  const filterBtns = document.querySelectorAll('#businessFilterGroup .toggle-btn');
-  filterBtns.forEach(b => {
-    if (b.getAttribute('data-biz') === biz) {
-      b.classList.add('active');
-    } else {
-      b.classList.remove('active');
-    }
-  });
+  renderBusinessSwitcher();
 
   const badge = document.getElementById('currentBizBadge');
   if (badge) {
@@ -242,13 +340,7 @@ function setBusinessFilter(biz) {
 }
 
 function initBusinessSwitcher() {
-  const filterBtns = document.querySelectorAll('#businessFilterGroup .toggle-btn');
-  filterBtns.forEach(btn => {
-    btn.addEventListener('click', () => {
-      const biz = btn.getAttribute('data-biz');
-      setBusinessFilter(biz);
-    });
-  });
+  renderBusinessSwitcher();
 }
 
 /**
@@ -434,6 +526,7 @@ const STORAGE_KEY_CARDS = 'LISA_CARD_SETTINGS_V1';
 const STORAGE_KEY_BANK_TX = 'LISA_BANK_TRANSACTIONS_V1';
 const STORAGE_KEY_EXPENSES = 'LISA_CUSTOM_EXPENSES_V1';
 const STORAGE_KEY_ASSETS = 'LISA_CUSTOM_ASSETS_V1';
+const STORAGE_KEY_BUSINESSES = 'LISA_BUSINESSES_V1';
 
 function saveStateToStorage() {
   try {
@@ -444,6 +537,7 @@ function saveStateToStorage() {
     localStorage.setItem(STORAGE_KEY_BANK_TX, JSON.stringify(AppState.bankTransactions));
     localStorage.setItem(STORAGE_KEY_EXPENSES, JSON.stringify(AppState.customExpenses));
     localStorage.setItem(STORAGE_KEY_ASSETS, JSON.stringify(AppState.customAssets));
+    localStorage.setItem(STORAGE_KEY_BUSINESSES, JSON.stringify(AppState.businesses));
   } catch (err) {
     console.warn('LocalStorage 저장 실패:', err);
   }
@@ -458,6 +552,24 @@ function loadStateFromStorage() {
     const savedBankTx = localStorage.getItem(STORAGE_KEY_BANK_TX);
     const savedExpenses = localStorage.getItem(STORAGE_KEY_EXPENSES);
     const savedAssets = localStorage.getItem(STORAGE_KEY_ASSETS);
+    const savedBusinesses = localStorage.getItem(STORAGE_KEY_BUSINESSES);
+
+    if (savedBusinesses) {
+      try {
+        const parsedBiz = JSON.parse(savedBusinesses);
+        if (Array.isArray(parsedBiz) && parsedBiz.length > 0) {
+          AppState.businesses = parsedBiz;
+        }
+      } catch (e) {
+        console.warn('사업자 목록 복원 오류:', e);
+      }
+    }
+    if (!AppState.businesses || !Array.isArray(AppState.businesses) || AppState.businesses.length === 0) {
+      AppState.businesses = [
+        { id: 'biz_a', name: '사업자A', owner: '강우석', regNum: '', desc: '스마트스토어 / 쿠팡 주력' },
+        { id: 'biz_b', name: '사업자B', owner: '강우석', regNum: '', desc: '오픈마켓 / 도매매 주력' }
+      ];
+    }
 
     if (savedBanks) {
       AppState.bankAccounts = JSON.parse(savedBanks);
@@ -484,13 +596,40 @@ function loadStateFromStorage() {
       AppState.customAssets = JSON.parse(savedAssets);
     }
 
+    // 기존 주문이나 계좌에 혹시 다른 사업자명이 있다면 누락 방지 자동 등록
+    const existingBizNames = new Set(AppState.businesses.map(b => b.name));
     if (savedOrders) {
       const parsed = JSON.parse(savedOrders);
       if (Array.isArray(parsed) && parsed.length > 0) {
         AppState.rawOrders = parsed;
+        AppState.rawOrders.forEach(o => {
+          if (o.biz && o.biz !== 'ALL' && !existingBizNames.has(o.biz)) {
+            AppState.businesses.push({ id: 'biz_' + Date.now() + Math.random().toString(36).substr(2, 4), name: o.biz, owner: '', regNum: '', desc: '' });
+            existingBizNames.add(o.biz);
+          }
+        });
+        (AppState.bankAccounts || []).forEach(b => {
+          if (b.biz && b.biz !== 'ALL' && !existingBizNames.has(b.biz)) {
+            AppState.businesses.push({ id: 'biz_' + Date.now() + Math.random().toString(36).substr(2, 4), name: b.biz, owner: '', regNum: '', desc: '' });
+            existingBizNames.add(b.biz);
+          }
+        });
+
+        renderBusinessSwitcher();
+        populateBusinessSelects();
         populateSelectFilters();
         renderAll();
         return true;
+      }
+    }
+
+    renderBusinessSwitcher();
+    populateBusinessSelects();
+  } catch (err) {
+    console.warn('LocalStorage 복원 실패:', err);
+  }
+  return false;
+}
       }
     }
   } catch (err) {
@@ -1177,7 +1316,7 @@ function renderOrdersTable() {
       <tr class="${isCounted ? '' : 'row-dimmed'}">
         <!-- 1. 사업자 (독립 셀) -->
         <td>
-          <span class="badge" style="background:${o.biz==='사업자A'?'#e0e7ff':'#fef3c7'};color:${o.biz==='사업자A'?'#3730a3':'#92400e'}">${o.biz}</span>
+          <span class="badge" style="background:${getBizBadgeStyle(o.biz).bg};color:${getBizBadgeStyle(o.biz).color};font-weight:700;">${escapeHtml(o.biz || '미지정')}</span>
         </td>
 
         <!-- 2. 주문일자 / 주문고유번호 (위아래 교체 & 일자만 표시 ⭐) -->
@@ -1869,6 +2008,229 @@ function setCardTxTab(tab) {
 }
 
 /**
+ * =========================================================
+ * 🏢 사업자 이름 등록 및 관리 기능 (Business Management)
+ * =========================================================
+ */
+function openBusinessModal() {
+  resetBusinessForm();
+  renderBusinessTable();
+  const overlay = document.getElementById('businessModalOverlay');
+  if (overlay) overlay.style.display = 'flex';
+  if (window.feather) feather.replace();
+}
+
+function closeBusinessModal() {
+  const overlay = document.getElementById('businessModalOverlay');
+  if (overlay) overlay.style.display = 'none';
+}
+
+function resetBusinessForm() {
+  const idEl = document.getElementById('formBizId');
+  const origEl = document.getElementById('formBizOriginalName');
+  const nameEl = document.getElementById('formBizName');
+  const ownerEl = document.getElementById('formBizOwner');
+  const regNumEl = document.getElementById('formBizRegNum');
+  const descEl = document.getElementById('formBizDesc');
+  const titleEl = document.getElementById('businessFormTitle');
+
+  if (idEl) idEl.value = '';
+  if (origEl) origEl.value = '';
+  if (nameEl) nameEl.value = '';
+  if (ownerEl) ownerEl.value = '';
+  if (regNumEl) regNumEl.value = '';
+  if (descEl) descEl.value = '';
+  if (titleEl) titleEl.textContent = '+ 새 사업자 등록하기';
+}
+
+function editBusiness(id) {
+  const biz = (AppState.businesses || []).find(b => b.id === id);
+  if (!biz) return;
+
+  const idEl = document.getElementById('formBizId');
+  const origEl = document.getElementById('formBizOriginalName');
+  const nameEl = document.getElementById('formBizName');
+  const ownerEl = document.getElementById('formBizOwner');
+  const regNumEl = document.getElementById('formBizRegNum');
+  const descEl = document.getElementById('formBizDesc');
+  const titleEl = document.getElementById('businessFormTitle');
+
+  if (idEl) idEl.value = biz.id;
+  if (origEl) origEl.value = biz.name;
+  if (nameEl) nameEl.value = biz.name;
+  if (ownerEl) ownerEl.value = biz.owner || '';
+  if (regNumEl) regNumEl.value = biz.regNum || '';
+  if (descEl) descEl.value = biz.desc || '';
+  if (titleEl) titleEl.textContent = `✏️ '${biz.name}' 사업자 정보 수정`;
+
+  if (nameEl) nameEl.focus();
+}
+
+function saveBusiness() {
+  const id = (document.getElementById('formBizId').value || '').trim();
+  const originalName = (document.getElementById('formBizOriginalName').value || '').trim();
+  const name = (document.getElementById('formBizName').value || '').trim();
+  const owner = (document.getElementById('formBizOwner').value || '').trim();
+  const regNum = (document.getElementById('formBizRegNum').value || '').trim();
+  const desc = (document.getElementById('formBizDesc').value || '').trim();
+
+  if (!name) {
+    alert('사업자 이름을 입력해 주세요!');
+    const nameEl = document.getElementById('formBizName');
+    if (nameEl) nameEl.focus();
+    return;
+  }
+
+  if (name.toUpperCase() === 'ALL' || name === '통합' || name === '전체') {
+    alert('"통합" 또는 "ALL"은 전체 조회를 위한 예약어이므로 사업자 이름으로 사용할 수 없습니다.');
+    return;
+  }
+
+  if (!AppState.businesses) AppState.businesses = [];
+
+  // 중복 검사 (자기 자신 수정은 허용)
+  const isDuplicate = AppState.businesses.some(b => b.name === name && b.id !== id);
+  if (isDuplicate) {
+    alert(`'${name}' 이름의 사업자가 이미 등록되어 있습니다.`);
+    return;
+  }
+
+  if (id) {
+    // ✏️ 기존 사업자 수정
+    const biz = AppState.businesses.find(b => b.id === id);
+    if (biz) {
+      biz.name = name;
+      biz.owner = owner;
+      biz.regNum = regNum;
+      biz.desc = desc;
+
+      // 이름이 변경된 경우, 기존 데이터(주문, 통장, 지출, 자산)의 사업자명도 자동 동기화!
+      if (originalName && originalName !== name) {
+        let updatedOrders = 0;
+        (AppState.rawOrders || []).forEach(o => {
+          if (o.biz === originalName) {
+            o.biz = name;
+            updatedOrders++;
+          }
+        });
+        (AppState.bankAccounts || []).forEach(b => {
+          if (b.biz === originalName) b.biz = name;
+        });
+        (AppState.customExpenses || []).forEach(e => {
+          if (e.biz === originalName) e.biz = name;
+        });
+        (AppState.customAssets || []).forEach(a => {
+          if (a.biz === originalName) a.biz = name;
+        });
+        if (AppState.currentBizFilter === originalName) {
+          AppState.currentBizFilter = name;
+        }
+      }
+    }
+  } else {
+    // ➕ 신규 사업자 등록
+    const newBiz = {
+      id: 'biz_' + Date.now(),
+      name,
+      owner,
+      regNum,
+      desc
+    };
+    AppState.businesses.push(newBiz);
+  }
+
+  saveStateToStorage();
+  resetBusinessForm();
+  renderBusinessTable();
+  renderBusinessSwitcher();
+  populateBusinessSelects();
+  renderAll();
+
+  alert(`사업자 '${name}'이(가) 성공적으로 저장되었습니다!`);
+}
+
+function deleteBusiness(id) {
+  const biz = (AppState.businesses || []).find(b => b.id === id);
+  if (!biz) return;
+
+  if (AppState.businesses.length <= 1) {
+    alert('최소 1개 이상의 사업자가 등록되어 있어야 합니다.');
+    return;
+  }
+
+  // 연결된 주문 및 통장 확인
+  const orderCount = (AppState.rawOrders || []).filter(o => o.biz === biz.name).length;
+  const bankCount = (AppState.bankAccounts || []).filter(b => b.biz === biz.name).length;
+
+  let msg = `'${biz.name}' 사업자를 정말 삭제하시겠습니까?`;
+  if (orderCount > 0 || bankCount > 0) {
+    msg = `⚠️ 주의: '${biz.name}' 사업자 이름으로 등록된 주문 ${orderCount}건, 통장 ${bankCount}개가 있습니다.\n정말 삭제하시겠습니까?`;
+  }
+
+  if (!confirm(msg)) return;
+
+  AppState.businesses = AppState.businesses.filter(b => b.id !== id);
+  if (AppState.currentBizFilter === biz.name) {
+    AppState.currentBizFilter = 'ALL';
+  }
+
+  saveStateToStorage();
+  resetBusinessForm();
+  renderBusinessTable();
+  renderBusinessSwitcher();
+  populateBusinessSelects();
+  renderAll();
+}
+
+function renderBusinessTable() {
+  const tbody = document.getElementById('businessTableBody');
+  const countBadge = document.getElementById('businessCountBadge');
+  if (!tbody) return;
+
+  const list = AppState.businesses || [];
+  if (countBadge) countBadge.textContent = list.length;
+
+  if (list.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;padding:24px;color:#94a3b8;">등록된 사업자가 없습니다. 위 입력창에서 등록해 주세요.</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = list.map(b => {
+    const badgeStyle = getBizBadgeStyle(b.name);
+    const orderCount = (AppState.rawOrders || []).filter(o => o.biz === b.name).length;
+    const bankCount = (AppState.bankAccounts || []).filter(b2 => b2.biz === b.name).length;
+
+    return `
+      <tr style="border-bottom:1px solid #f1f5f9;">
+        <td style="padding:10px 12px;font-weight:700;">
+          <span class="badge" style="background:${badgeStyle.bg};color:${badgeStyle.color};padding:4px 10px;font-size:12px;border-radius:6px;">
+            ${escapeHtml(b.name)}
+          </span>
+        </td>
+        <td style="padding:10px 12px;color:#475569;">
+          ${escapeHtml(b.owner || '-')}
+        </td>
+        <td style="padding:10px 12px;color:#64748b;font-size:12px;">
+          <div>${escapeHtml(b.regNum || '')}</div>
+          <div style="color:#94a3b8;">${escapeHtml(b.desc || '')}</div>
+        </td>
+        <td style="padding:10px 12px;text-align:center;font-size:12px;color:#334155;">
+          주문 <b style="color:#2563eb;">${orderCount}</b>건 / 통장 <b style="color:#059669;">${bankCount}</b>개
+        </td>
+        <td style="padding:10px 12px;text-align:center;">
+          <button type="button" class="btn btn-xs btn-secondary" onclick="editBusiness('${b.id}')" style="padding:3px 8px;font-size:11px;margin-right:4px;">
+            ✏️ 수정
+          </button>
+          <button type="button" class="btn btn-xs btn-danger" onclick="deleteBusiness('${b.id}')" style="padding:3px 8px;font-size:11px;background:#fee2e2;color:#b91c1c;border:none;border-radius:4px;cursor:pointer;">
+            🗑️ 삭제
+          </button>
+        </td>
+      </tr>
+    `;
+  }).join('');
+}
+
+/**
  * 카드사 정보 관리 모달 핸들러
  */
 function openCardSettingsModal() {
@@ -2261,15 +2623,14 @@ function renderSettlementView() {
     } else {
       bankList.innerHTML = displayBanks.map(b => {
         const stats = getBankAccountStats(b.id);
-        const bizBadgeBg = b.biz === '사업자A' ? '#eef2ff' : (b.biz === '사업자B' ? '#ecfdf5' : '#fef3c7');
-        const bizBadgeColor = b.biz === '사업자A' ? '#4f46e5' : (b.biz === '사업자B' ? '#059669' : '#d97706');
+        const bStyle = getBizBadgeStyle(b.biz);
 
         return `
         <div class="bank-account-card" style="display:flex;justify-content:space-between;align-items:center;padding:14px 16px;background:#fff;border:1px solid #e2e8f0;border-radius:12px;box-shadow:0 1px 3px rgba(0,0,0,0.04);margin-bottom:10px;">
           <div>
             <div class="bank-name" style="font-weight:700;font-size:14px;color:#1e293b;display:flex;align-items:center;gap:6px;">
               <span>🏦 ${b.bankName || b.name}</span>
-              <span class="badge" style="background:${bizBadgeBg};color:${bizBadgeColor};font-size:11px;font-weight:700;">${b.biz || '공통'}</span>
+              <span class="badge" style="background:${bStyle.bg};color:${bStyle.color};font-size:11px;font-weight:700;">${escapeHtml(b.biz || '공통')}</span>
             </div>
             <div style="font-size:12.5px;color:#475569;margin-top:3px;font-weight:600;">${b.accountName || b.name}</div>
             <div class="bank-num" style="font-size:12px;color:#64748b;margin-top:2px;font-family:monospace;">${b.accountNum}</div>
@@ -2357,12 +2718,14 @@ function openBankAccountModal(id) {
   const noteEl = document.getElementById('formBankNote');
   const titleEl = document.getElementById('bankModalTitle');
 
+  populateBusinessSelects();
+
   if (id && id !== -1) {
     const b = AppState.bankAccounts.find(item => item.id == id);
     if (b) {
       if (idEl) idEl.value = b.id;
       if (nameEl) nameEl.value = b.bankName || '기업은행';
-      if (bizEl) bizEl.value = b.biz || '사업자A';
+      if (bizEl) bizEl.value = b.biz || (AppState.businesses[0]?.name || '사업자A');
       if (accNameEl) accNameEl.value = b.accountName || b.name || '';
       if (accNumEl) accNumEl.value = b.accountNum || '';
       const initial = (b.initialBalance !== undefined) ? b.initialBalance : (b.balance || 0);
@@ -2373,7 +2736,10 @@ function openBankAccountModal(id) {
   } else {
     if (idEl) idEl.value = '';
     if (nameEl) nameEl.value = '기업은행';
-    if (bizEl) bizEl.value = AppState.currentBizFilter === 'ALL' ? '사업자A' : AppState.currentBizFilter;
+    const defaultBiz = (AppState.currentBizFilter !== 'ALL' && (AppState.businesses || []).some(b => b.name === AppState.currentBizFilter)) 
+      ? AppState.currentBizFilter 
+      : (AppState.businesses[0]?.name || '사업자A');
+    if (bizEl) bizEl.value = defaultBiz;
     if (accNameEl) accNameEl.value = '';
     if (accNumEl) accNumEl.value = '';
     if (balEl) balEl.value = '';
@@ -3453,6 +3819,7 @@ function calculatePL() {
  * 💸 판관비(추가 비용) 모달 및 관리 핸들러
  */
 function openCustomExpenseModal() {
+  populateBusinessSelects();
   document.getElementById('formExpTitle').value = '';
   document.getElementById('formExpAmount').value = '';
   document.getElementById('formExpNote').value = '';
@@ -3544,6 +3911,7 @@ function renderCustomExpenses() {
  * 💎 자산 & 부채 모달 및 관리 핸들러 (순자산 반영)
  */
 function openCustomAssetModal() {
+  populateBusinessSelects();
   document.getElementById('formAssetTitle').value = '';
   document.getElementById('formAssetAmount').value = '';
   document.getElementById('formAssetNote').value = '';
@@ -4022,6 +4390,7 @@ function openOrderModal(index = -1, defaultMode = 'CONSIGNMENT_SALE') {
   if (!overlay || !form) return;
 
   document.getElementById('formOrderIndex').value = index;
+  populateBusinessSelects();
 
   if (index >= 0 && AppState.rawOrders[index]) {
     const o = AppState.rawOrders[index];
@@ -4037,7 +4406,7 @@ function openOrderModal(index = -1, defaultMode = 'CONSIGNMENT_SALE') {
     }
     toggleModalMode(mode);
 
-    document.getElementById('formBiz').value = o.biz || '사업자A';
+    document.getElementById('formBiz').value = o.biz || (AppState.businesses[0]?.name || '사업자A');
     document.getElementById('formOrderDate').value = o.orderDate || formatDateForInput(new Date());
     document.getElementById('formOrderNo').value = o.orderNo || `ORD-${Date.now()}`;
     document.getElementById('formSourcingType').value = o.sourcingType || (mode === 'CONSIGNMENT_SALE' ? '위탁' : '사입');
@@ -4101,7 +4470,10 @@ function openOrderModal(index = -1, defaultMode = 'CONSIGNMENT_SALE') {
     document.getElementById('formOrderIndex').value = -1;
     toggleModalMode(defaultMode);
 
-    document.getElementById('formBiz').value = AppState.currentBizFilter === 'ALL' ? '사업자A' : AppState.currentBizFilter;
+    const defaultBiz = (AppState.currentBizFilter !== 'ALL' && (AppState.businesses || []).some(b => b.name === AppState.currentBizFilter))
+      ? AppState.currentBizFilter 
+      : (AppState.businesses[0]?.name || '사업자A');
+    document.getElementById('formBiz').value = defaultBiz;
     document.getElementById('formOrderDate').value = formatDateForInput(new Date());
     document.getElementById('formOrderNo').value = (defaultMode === 'PURCHASE_ONLY' ? `BUY-${Date.now()}` : `ORD-${Date.now()}`);
     document.getElementById('formQty').value = 1;
@@ -4350,6 +4722,18 @@ window.switchOrdersViewTab = switchOrdersViewTab;
 window.renderOrdersDailyTable = renderOrdersDailyTable;
 window.renderOrdersMonthlyTable = renderOrdersMonthlyTable;
 window.filterOrdersByDate = filterOrdersByDate;
+
+// 0. 사업자 등록 및 관리
+window.openBusinessModal = openBusinessModal;
+window.closeBusinessModal = closeBusinessModal;
+window.resetBusinessForm = resetBusinessForm;
+window.editBusiness = editBusiness;
+window.saveBusiness = saveBusiness;
+window.deleteBusiness = deleteBusiness;
+window.renderBusinessTable = renderBusinessTable;
+window.renderBusinessSwitcher = renderBusinessSwitcher;
+window.populateBusinessSelects = populateBusinessSelects;
+window.getBizBadgeStyle = getBizBadgeStyle;
 
 // 2. 카드사 결제관리
 window.selectCard = selectCard;

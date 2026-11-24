@@ -169,16 +169,25 @@ body {
   font-weight: 700;
 }
 
-/* 사이드바 사업자 선택 버튼은 3등분으로 유지 */
+/* 사이드바 사업자 선택 버튼 */
 #businessFilterGroup {
   display: flex;
+  flex-wrap: wrap;
   width: 100%;
+  gap: 4px;
 }
 
 #businessFilterGroup .toggle-btn {
-  flex: 1;
-  padding: 7px 4px;
+  flex: 1 1 calc(33.333% - 4px);
+  min-width: 60px;
+  padding: 7px 6px;
   font-size: 12px;
+  white-space: nowrap;
+}
+
+.btn-biz-manage:hover {
+  background: #c7d2fe !important;
+  color: #312e81 !important;
 }
 
 /* 주문장 뷰 모드 전환 및 카드 결제 상세 탭 크기 시원하게 확대 및 1줄 고정 */
