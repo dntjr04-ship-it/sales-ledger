@@ -3806,6 +3806,248 @@ function renderInventoryView() {
 }
 
 /**
+ * 📊 숫자 3자리 콤마 포맷 (엑셀식, 원 단위 제외)
+ */
+function formatNumber(num) {
+  if (num === 0 || num === '0') return '0';
+  if (!num) return '';
+  return Math.round(num).toLocaleString('ko-KR');
+}
+
+/**
+ * 📊 엑셀식 손익계산서용 사업자별 / 통합 재무 수치 계산
+ */
+function getScopeFinancials(scopeBiz, selectedYear) {
+  const allOrders = AppState.rawOrders || [];
+  const bizCount = (AppState.businesses && AppState.businesses.length > 0) ? AppState.businesses.length : 2;
+
+  // 1. 주문 필터링
+  const orders = allOrders.filter(o => {
+    if (o.status === '취소') return false;
+    const d = o.orderDate || o.paymentDate || '';
+    const yearOk = (selectedYear === 'ALL' || d.startsWith(selectedYear));
+    const bizOk = (scopeBiz === 'ALL' || o.biz === scopeBiz);
+    return yearOk && bizOk;
+  });
+
+  let grossSales = 0;
+  let netSales = 0;
+  let marketFees = 0;
+  const supplierMap = {};
+  let totalPurchase = 0;
+  let orderDelivery = 0;
+
+  orders.forEach(o => {
+    if (o.totalSales > 0) {
+      grossSales += o.totalSales;
+      const settleAmt = (o.actualSettlement > 0) ? o.actualSettlement : (o.standardPrice || o.totalSales);
+      netSales += settleAmt;
+      marketFees += (o.totalSales - settleAmt);
+    }
+    const cost = getOrderActualCost(o);
+    if (cost > 0) {
+      totalPurchase += cost;
+      const supp = (o.supplierName || o.supplierBiz || o.sourcingPlatform || '매입1').trim();
+      supplierMap[supp] = (supplierMap[supp] || 0) + cost;
+    }
+    if (o.deliveryFeeOut > 0) {
+      orderDelivery += o.deliveryFeeOut;
+    }
+  });
+
+  // 2. 비용(customExpenses) 필터링
+  const expMap = {
+    delivery: 0,      // 택배비
+    ad: 0,            // 광고비
+    fee: 0,           // 수수료
+    office: 0,        // 사무실비용
+    regTax: 0,        // 등록세
+    licenseTax: 0,    // 면허세
+    education: 0,     // 교육비
+    vat: 0,           // 부가세
+    others: {}        // 기타 세부 카테고리 (프로그램비, 식대, 소모품 등)
+  };
+
+  (AppState.customExpenses || []).forEach(exp => {
+    const d = exp.date || exp.month || '';
+    const yearOk = (selectedYear === 'ALL' || d.startsWith(selectedYear));
+    if (!yearOk) return;
+
+    let multiplier = 0;
+    if (scopeBiz === 'ALL') {
+      multiplier = 1;
+    } else if (exp.biz === scopeBiz) {
+      multiplier = 1;
+    } else if (exp.biz === 'ALL') {
+      multiplier = 1 / bizCount;
+    }
+    if (multiplier <= 0) return;
+
+    const amt = Math.round((exp.amount || 0) * multiplier);
+    const cat = (exp.category || '').trim();
+    const title = (exp.title || '').trim();
+
+    if (cat === '포장/택배비' || title.includes('택배') || title.includes('배송')) {
+      expMap.delivery += amt;
+    } else if (cat === '광고비' || title.includes('광고')) {
+      expMap.ad += amt;
+    } else if (cat === '결제수수료' || title.includes('수수료')) {
+      expMap.fee += amt;
+    } else if (cat === '임차료' || title.includes('사무실') || title.includes('월세') || title.includes('임대')) {
+      expMap.office += amt;
+    } else if (title.includes('등록세')) {
+      expMap.regTax += amt;
+    } else if (title.includes('면허세')) {
+      expMap.licenseTax += amt;
+    } else if (cat === '교육비' || title.includes('교육') || title.includes('강의')) {
+      expMap.education += amt;
+    } else if (title.includes('부가세') || title.includes('세무')) {
+      expMap.vat += amt;
+    } else {
+      const otherCat = cat || '기타잡비';
+      expMap.others[otherCat] = (expMap.others[otherCat] || 0) + amt;
+    }
+  });
+
+  const totalDelivery = orderDelivery + expMap.delivery;
+  const totalMarketFee = marketFees + expMap.fee;
+
+  // 지출 항목 리스트 구성 (사용자 엑셀 원본 양식 순서 그대로 ⭐)
+  const expenseRows = [];
+
+  const suppliers = Object.keys(supplierMap);
+  if (suppliers.length === 0) {
+    expenseRows.push({ name: '매입1', amount: totalPurchase });
+  } else if (suppliers.length === 1) {
+    const sName = suppliers[0];
+    const label = (sName === '기본' || sName === '매입1') ? '매입1' : `매입1(${sName})`;
+    expenseRows.push({ name: label, amount: supplierMap[sName] });
+  } else {
+    suppliers.forEach((sName, idx) => {
+      expenseRows.push({ name: `매입${idx + 1}(${sName})`, amount: supplierMap[sName] });
+    });
+  }
+
+  expenseRows.push({ name: '택배비', amount: totalDelivery });
+  expenseRows.push({ name: '광고비', amount: expMap.ad });
+  expenseRows.push({ name: '판매수수료', amount: totalMarketFee });
+  expenseRows.push({ name: '사무실비용', amount: expMap.office });
+  expenseRows.push({ name: '등록세', amount: expMap.regTax });
+  expenseRows.push({ name: '면허세', amount: expMap.licenseTax });
+  expenseRows.push({ name: '교육비', amount: expMap.education });
+  expenseRows.push({ name: '부가세', amount: expMap.vat });
+
+  // 추가로 등록된 기타 비용들 (프로그램비 등)
+  Object.keys(expMap.others).forEach(otherCat => {
+    if (expMap.others[otherCat] > 0) {
+      expenseRows.push({ name: otherCat, amount: expMap.others[otherCat] });
+    }
+  });
+
+  let totalExpense = 0;
+  expenseRows.forEach(r => { totalExpense += r.amount; });
+
+  const totalIncome = grossSales;
+  const netProfit = totalIncome - totalExpense;
+
+  return {
+    grossSales,
+    totalIncome,
+    expenseRows,
+    totalExpense,
+    netProfit
+  };
+}
+
+/**
+ * 📊 엑셀식 손익계산서 카드 HTML 생성
+ */
+function renderExcelPlCardHtml(title, badgeText, themeColor, data) {
+  const rowCount = Math.max(data.expenseRows.length, 10);
+
+  let rowsHtml = '';
+  for (let i = 0; i < rowCount; i++) {
+    // 수입 컬럼
+    let incomeLabel = '';
+    let incomeValHtml = '';
+    if (i === 0) {
+      incomeLabel = '매출금액';
+      incomeValHtml = (data.totalIncome > 0)
+        ? `<td class="excel-col-val excel-amt-active">${formatNumber(data.totalIncome)}</td>`
+        : `<td class="excel-col-val"></td>`;
+    } else {
+      incomeLabel = '';
+      incomeValHtml = `<td class="excel-col-val"></td>`;
+    }
+
+    // 지출 컬럼
+    const expItem = data.expenseRows[i];
+    let expLabel = expItem ? expItem.name : '';
+    let expValHtml = '';
+    if (expItem && expItem.amount > 0) {
+      expValHtml = `<td class="excel-col-val excel-amt-active">${formatNumber(expItem.amount)}</td>`;
+    } else {
+      expValHtml = `<td class="excel-col-val"></td>`;
+    }
+
+    rowsHtml += `
+      <tr>
+        <td class="excel-col-label">${escapeHtml(incomeLabel)}</td>
+        ${incomeValHtml}
+        <td class="excel-col-label">${escapeHtml(expLabel)}</td>
+        ${expValHtml}
+      </tr>
+    `;
+  }
+
+  // 합계 행
+  const totalRowHtml = `
+    <tr class="excel-total-row">
+      <td class="excel-col-label"></td>
+      <td class="excel-col-val excel-amt-active">${data.totalIncome > 0 ? formatNumber(data.totalIncome) : '0'}</td>
+      <td class="excel-col-label"></td>
+      <td class="excel-col-val excel-amt-active">${data.totalExpense > 0 ? formatNumber(data.totalExpense) : '0'}</td>
+    </tr>
+  `;
+
+  // 수익 행
+  const profitLabel = '수익';
+  const profitClass = data.netProfit >= 0 ? 'profit-plus' : 'profit-minus';
+  const profitRowHtml = `
+    <tr class="excel-profit-row">
+      <td class="excel-col-label" style="border-right:none;"></td>
+      <td class="excel-col-val" style="border-left:none;"></td>
+      <td class="excel-profit-label">${profitLabel}</td>
+      <td class="excel-profit-val ${profitClass}">${formatNumber(data.netProfit)}</td>
+    </tr>
+  `;
+
+  return `
+    <div class="excel-pl-card">
+      <div class="excel-card-header" style="background:${themeColor};color:#fff;padding:9px 12px;display:flex;align-items:center;justify-content:space-between;">
+        <span style="font-weight:800;font-size:13.5px;">${escapeHtml(title)}</span>
+        <span style="font-size:11px;background:rgba(255,255,255,0.22);padding:2px 8px;border-radius:12px;font-weight:700;">${escapeHtml(badgeText)}</span>
+      </div>
+      <div style="padding:10px;overflow-x:auto;">
+        <table class="excel-pl-table">
+          <thead>
+            <tr class="excel-header-row">
+              <th colspan="2" style="width:50%;">수입</th>
+              <th colspan="2" style="width:50%;">지출</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rowsHtml}
+            ${totalRowHtml}
+            ${profitRowHtml}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `;
+}
+
+/**
  * 6. 비용 & 손익계산서 & 순자산 (년도별 손익계산서 및 일자별 비용 연동)
  */
 function calculatePL() {
@@ -3815,11 +4057,32 @@ function calculatePL() {
 
   const tableTitle = document.getElementById('plTableTitle');
   if (tableTitle) {
-    if (selectedYear === 'ALL') tableTitle.textContent = '🌐 전체 연도 통합 경영 손익계산서 (P&L)';
-    else tableTitle.textContent = `📅 ${selectedYear}년 경영 손익계산서 (P&L)`;
+    if (selectedYear === 'ALL') tableTitle.textContent = '🌐 전체 연도 통합 경영 손익계산서 (수입 vs 지출)';
+    else tableTitle.textContent = `📅 ${selectedYear}년 경영 손익계산서 (수입 vs 지출)`;
   }
 
-  // 1. 주문 필터링: 선택된 사업자 + 선택된 년도
+  // ⭐ 3개 비교 엑셀 손익계산서 렌더링 (한 화면에 전체 + 각 사업자별 비교 ⭐)
+  const comparativeGrid = document.getElementById('plComparativeGrid');
+  if (comparativeGrid) {
+    const cards = [];
+
+    // 1) 통합 전체
+    const totalData = getScopeFinancials('ALL', selectedYear);
+    cards.push(renderExcelPlCardHtml('🌐 통합 전체 손익계산서', '전 사업자 합산', '#1e3a8a', totalData));
+
+    // 2) 등록된 각 사업자별
+    const colors = ['#0f766e', '#7c3aed', '#c2410c', '#0284c7', '#4f46e5'];
+    (AppState.businesses || []).forEach((b, idx) => {
+      const bData = getScopeFinancials(b.name, selectedYear);
+      const color = colors[idx % colors.length];
+      const badge = b.owner ? `대표: ${b.owner}` : '사업자';
+      cards.push(renderExcelPlCardHtml(`🏢 ${b.name} 손익계산서`, badge, color, bData));
+    });
+
+    comparativeGrid.innerHTML = cards.join('');
+  }
+
+  // 1. 순자산 계산용 주문 필터링: 선택된 사업자 + 선택된 년도
   const baseCountable = getCountableOrders();
   const baseAllOrders = getBizOrders();
 
@@ -3834,68 +4097,12 @@ function calculatePL() {
     return d.startsWith(selectedYear);
   });
 
-  let grossSales = 0;
-  let netSales = 0;
   let purchaseCost = 0;
-
   countableOrders.forEach(o => {
     if (o.market && o.totalSales > 0) {
-      grossSales += o.totalSales;
-      const settleAmt = (o.actualSettlement > 0) ? o.actualSettlement : o.standardPrice;
-      netSales += settleAmt;
       purchaseCost += getOrderActualCost(o);
     }
   });
-
-  const marketFees = grossSales - netSales;
-  const grossProfit = netSales - purchaseCost;
-
-  // 2. 등록된 비용(판관비) 항목 합산: 선택된 사업자 + 선택된 년도
-  let customExpTotal = 0;
-  const filteredExpenses = (AppState.customExpenses || []).filter(exp => {
-    const bizMatch = (AppState.currentBizFilter === 'ALL' || exp.biz === 'ALL' || exp.biz === AppState.currentBizFilter);
-    const d = exp.date || exp.month || '';
-    const yearMatch = (selectedYear === 'ALL' || d.startsWith(selectedYear));
-    return bizMatch && yearMatch;
-  });
-
-  filteredExpenses.forEach(exp => { customExpTotal += (exp.amount || 0); });
-
-  // ⭐ 요청 반영: 손익계산서에서는 비용 항목들을 일일이 나열하지 않고 1줄 합계로만 깔끔하게 표시!
-  const expSumEl = document.getElementById('plCustomExpenseSum');
-  const expCountEl = document.getElementById('plCustomExpenseCount');
-  if (expSumEl) expSumEl.textContent = '-' + formatKRW(customExpTotal);
-  if (expCountEl) expCountEl.textContent = `(${filteredExpenses.length}건 등록)`;
-
-  const otherExpenseInput = document.getElementById('inputOtherExpense');
-  const otherExpense = otherExpenseInput ? parseFloat(otherExpenseInput.value) || 0 : 50000;
-  const taxReserve = Math.max(0, Math.round(grossProfit * 0.1));
-  const totalExpense = customExpTotal + otherExpense + taxReserve;
-  const finalNetProfit = grossProfit - totalExpense;
-
-  const elST = document.getElementById('plSalesTotal');
-  const elGS = document.getElementById('plGrossSales');
-  const elMF = document.getElementById('plMarketFees');
-  const elNS = document.getElementById('plNetSales');
-  const elCT = document.getElementById('plCogsTotal');
-  const elPC = document.getElementById('plPurchaseCost');
-  const elGP = document.getElementById('plGrossProfit');
-  const elET = document.getElementById('plExpenseTotal');
-  const elOE = document.getElementById('plOtherExpense');
-  const elTR = document.getElementById('plTaxReserve');
-  const elFP = document.getElementById('plFinalNetProfit');
-
-  if (elST) elST.textContent = formatKRW(grossSales);
-  if (elGS) elGS.textContent = formatKRW(grossSales);
-  if (elMF) elMF.textContent = '-' + formatKRW(marketFees);
-  if (elNS) elNS.textContent = formatKRW(netSales);
-  if (elCT) elCT.textContent = '-' + formatKRW(purchaseCost);
-  if (elPC) elPC.textContent = '-' + formatKRW(purchaseCost);
-  if (elGP) elGP.textContent = formatKRW(grossProfit);
-  if (elET) elET.textContent = '-' + formatKRW(totalExpense);
-  if (elOE) elOE.textContent = '-' + formatKRW(otherExpense);
-  if (elTR) elTR.textContent = '-' + formatKRW(taxReserve);
-  if (elFP) elFP.textContent = formatKRW(finalNetProfit);
 
   // 2. 순자산 공식 계산: (통장 잔고) + (정산 미수금) + (창고 재고가치) + (추가 자산) - (나갈 카드값) - (등록 부채)
   let bankTotal = 0;
