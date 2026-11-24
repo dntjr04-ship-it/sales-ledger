@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>리사님의 만능 매출장부 & 경영 비서</title>
-  <link rel="stylesheet" href="style.css?v=20261124_11">
+  <link rel="stylesheet" href="style.css?v=20261124_12">
   <!-- Chart.js for beautiful charts -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <!-- Feather Icons for clean icons -->
@@ -76,8 +76,8 @@
           <span>재고 & 상품 원가</span>
         </button>
         <button class="nav-item" data-target="plView" onclick="switchNav('plView')">
-          <i data-feather="trending-up"></i>
-          <span>손익계산서 & 순자산</span>
+          <i data-feather="file-text"></i>
+          <span>비용 & 손익계산서</span>
         </button>
         <button class="nav-item" data-target="sourcingRadarView" onclick="switchNav('sourcingRadarView')">
           <i data-feather="compass"></i>
@@ -757,100 +757,253 @@
         </div>
       </section>
 
-      <!-- 6. 손익계산서 & 순자산 뷰 -->
+      <!-- 6. 비용 & 손익계산서 뷰 -->
       <section class="content-view" id="plView">
-        <!-- 순자산 요약 배너 -->
-        <div class="asset-banner">
-          <div class="asset-text">
-            <span class="sub">리사님의 현재 알짜 순자산 가치</span>
-            <h1 class="asset-amount" id="totalNetAssetValue">0원</h1>
-            <p class="asset-formula">
-              <strong>[계산 공식]</strong> (통장 잔고 <span id="fBank">0원</span>) + (정산 미수금 <span id="fReceivable">0원</span>) + (창고 재고가치 <span id="fStock">0원</span>) + (추가 자산 <span id="fExtraAsset" style="color:#bbf7d0;font-weight:700;">+0원</span>) - (나갈 카드값 <span id="fCard">0원</span>) - (등록 부채 <span id="fExtraDebt" style="color:#fecaca;font-weight:700;">-0원</span>)
-            </p>
-          </div>
-          <div style="display:flex;flex-direction:column;gap:8px;align-items:flex-end;">
-            <div class="asset-chart-badge">
-              <i data-feather="shield"></i>
-              <span>재무 건전성 우수</span>
-            </div>
-            <button class="btn btn-sm" onclick="openCustomAssetModal()" style="background:rgba(255,255,255,0.2);color:#fff;border:1px solid rgba(255,255,255,0.4);font-weight:700;border-radius:8px;padding:6px 14px;cursor:pointer;">
-              💎 자산/부채 등록·관리
+        <!-- 뷰 모드 전환 토글 바 (비용 관리 / 손익계산서 & 순자산) -->
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:18px;background:#fff;padding:12px 18px;border-radius:12px;border:1px solid #e2e8f0;box-shadow:0 1px 3px rgba(0,0,0,0.03);flex-wrap:wrap;">
+          <div class="btn-group-toggle" id="plTabToggleGroup">
+            <button class="toggle-btn active" id="btnTabExpense" onclick="switchPlTab('expense')">
+              💸 비용 관리 (일자별 지출 장부)
             </button>
+            <button class="toggle-btn" id="btnTabProfitLoss" onclick="switchPlTab('pnl')">
+              📊 손익계산서 & 순자산
+            </button>
+          </div>
+          <div style="font-size:12.5px;color:#64748b;" id="plTabDesc">
+            💡 통장거래처럼 광고비, 프로그램비 등 지출 내역을 일자별로 쉽고 빠르게 기록합니다.
           </div>
         </div>
 
-        <!-- 손익계산서 표 -->
-        <div class="panel mt-4">
-          <div class="panel-header flex-between flex-wrap gap-2">
-            <div class="panel-title">
-              <i data-feather="file-text"></i>
-              <h3>2026 연간 경영 손익계산서 (P&L)</h3>
+        <!-- 탭 1. 비용 관리 (일자별 지출 장부) -->
+        <div id="expenseContainer">
+          <!-- 상단 지출 요약 카드 -->
+          <div class="dashboard-grid mb-4" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:14px; margin-bottom:18px;">
+            <div class="stat-card" style="border-left:4px solid #ef4444; background:#fff; padding:16px; border-radius:12px; border:1px solid #e2e8f0;">
+              <span class="stat-label" style="font-size:12px;color:#64748b;font-weight:700;">💸 총 누적 비용(지출) 합계</span>
+              <h2 class="stat-value text-danger" id="expenseTotalAmount" style="font-size:22px;font-weight:800;color:#ef4444;margin:6px 0 0;">0원</h2>
             </div>
-            <button class="btn btn-primary btn-sm" onclick="openCustomExpenseModal()" style="font-weight:700;">
-              💸 판관비/추가비용 등록·관리
-            </button>
+            <div class="stat-card" style="border-left:4px solid #f97316; background:#fff; padding:16px; border-radius:12px; border:1px solid #e2e8f0;">
+              <span class="stat-label" style="font-size:12px;color:#64748b;font-weight:700;">📅 당월(이번 달) 지출액</span>
+              <h2 class="stat-value" id="expenseThisMonthAmount" style="font-size:22px;font-weight:800;color:#f97316;margin:6px 0 0;">0원</h2>
+            </div>
+            <div class="stat-card" style="border-left:4px solid #3b82f6; background:#fff; padding:16px; border-radius:12px; border:1px solid #e2e8f0;">
+              <span class="stat-label" style="font-size:12px;color:#64748b;font-weight:700;">📋 등록된 비용 건수</span>
+              <h2 class="stat-value" id="expenseCountBadge" style="font-size:22px;font-weight:800;color:#1e3a8a;margin:6px 0 0;">0건</h2>
+            </div>
           </div>
-          <div class="panel-body">
-            <table class="pl-table">
-              <tbody>
-                <tr class="pl-group-header">
-                  <td colspan="2"><strong>1. 매출 (Revenue)</strong></td>
-                  <td class="text-right"><strong id="plSalesTotal">0원</strong></td>
-                </tr>
-                <tr>
-                  <td class="pl-indent">총 판매 매출액 (판매가+배송비)</td>
-                  <td></td>
-                  <td class="text-right" id="plGrossSales">0원</td>
-                </tr>
-                <tr>
-                  <td class="pl-indent">마켓 수수료 차감액 (판매가 - 결제기준가)</td>
-                  <td></td>
-                  <td class="text-right text-danger" id="plMarketFees">-0원</td>
-                </tr>
-                <tr class="pl-subtotal">
-                  <td class="pl-indent"><strong>순 매출액 (결제기준가 합계)</strong></td>
-                  <td></td>
-                  <td class="text-right"><strong id="plNetSales">0원</strong></td>
-                </tr>
 
-                <tr class="pl-group-header">
-                  <td colspan="2"><strong>2. 매출원가 (Cost of Goods Sold)</strong></td>
-                  <td class="text-right text-danger"><strong id="plCogsTotal">-0원</strong></td>
-                </tr>
-                <tr>
-                  <td class="pl-indent">실 상품 매입비용 (결제가 합산)</td>
-                  <td></td>
-                  <td class="text-right text-danger" id="plPurchaseCost">-0원</td>
-                </tr>
+          <!-- 비용 관리 패널 (엑셀식 일자별 빠른 입력 + 목록) -->
+          <div class="panel">
+            <div class="panel-header flex-between flex-wrap gap-2">
+              <div class="panel-title">
+                <i data-feather="dollar-sign"></i>
+                <h3>일자별 비용(지출) 거래내역 장부</h3>
+                <span class="badge" style="background:#fef2f2;color:#dc2626;margin-left:8px;font-weight:700;">실시간 자동 집계</span>
+              </div>
+              <div class="table-actions flex-wrap" style="gap:8px;">
+                <select id="expenseFilterYear" class="select-box" onchange="renderExpenseTable()">
+                  <option value="ALL">모든 연도</option>
+                  <option value="2026" selected>2026년</option>
+                  <option value="2025">2025년</option>
+                </select>
+                <select id="expenseFilterMonth" class="select-box" onchange="renderExpenseTable()">
+                  <option value="ALL">모든 월 (1~12월)</option>
+                  <option value="01">1월</option>
+                  <option value="02">2월</option>
+                  <option value="03">3월</option>
+                  <option value="04">4월</option>
+                  <option value="05">5월</option>
+                  <option value="06">6월</option>
+                  <option value="07">7월</option>
+                  <option value="08">8월</option>
+                  <option value="09">9월</option>
+                  <option value="10">10월</option>
+                  <option value="11">11월</option>
+                  <option value="12">12월</option>
+                </select>
+                <select id="expenseFilterBiz" class="select-box" onchange="renderExpenseTable()">
+                  <option value="ALL">모든 사업자</option>
+                </select>
+                <select id="expenseFilterCat" class="select-box" onchange="renderExpenseTable()">
+                  <option value="ALL">모든 비용 분류</option>
+                  <option value="광고비">광고비</option>
+                  <option value="프로그램비">프로그램비</option>
+                  <option value="임차료">임차료</option>
+                  <option value="포장/택배비">포장/택배비</option>
+                  <option value="소모품비">소모품비</option>
+                  <option value="세금/공과금">세금/공과금</option>
+                  <option value="식대/복리후생">식대/복리후생</option>
+                  <option value="결제수수료">결제수수료</option>
+                  <option value="기타잡비">기타잡비</option>
+                </select>
+              </div>
+            </div>
 
-                <tr class="pl-total-row">
-                  <td colspan="2"><strong>3. 매출총이익 (Gross Profit)</strong></td>
-                  <td class="text-right"><strong class="text-success" id="plGrossProfit">0원</strong></td>
-                </tr>
+            <div class="panel-body table-responsive">
+              <table class="data-table" id="expenseTable">
+                <thead>
+                  <tr>
+                    <th style="min-width:115px;">지출일자</th>
+                    <th style="min-width:105px;">사업자</th>
+                    <th style="min-width:110px;">비용 분류</th>
+                    <th style="min-width:180px;">항목명 / 지출 내용</th>
+                    <th style="text-align:right;min-width:115px;">지출금액</th>
+                    <th style="min-width:115px;">결제수단 / 출금처</th>
+                    <th style="min-width:140px;">메모 / 비고</th>
+                    <th style="text-align:center;min-width:85px;">관리</th>
+                  </tr>
+                  <!-- ⚡ 통장거래처럼 일자별로 바로 입력하는 엑셀식 빠른 입력 행 -->
+                  <tr class="quick-exp-input-row" style="background:#f0fdf4;border-bottom:2px solid #22c55e;">
+                    <td style="padding:6px 4px;">
+                      <input type="date" id="quickExpDate" class="form-control" style="font-size:11px;padding:3px 4px;height:30px;background:#fff;" title="지출일자">
+                    </td>
+                    <td style="padding:6px 4px;">
+                      <select id="quickExpBiz" class="form-control" style="font-size:11px;padding:2px 4px;height:30px;background:#fff;"></select>
+                    </td>
+                    <td style="padding:6px 4px;">
+                      <select id="quickExpCategory" class="form-control" style="font-size:11px;padding:2px 4px;height:30px;background:#fff;">
+                        <option value="광고비">광고비</option>
+                        <option value="프로그램비">프로그램비</option>
+                        <option value="임차료">임차료</option>
+                        <option value="포장/택배비">포장/택배비</option>
+                        <option value="소모품비">소모품비</option>
+                        <option value="세금/공과금">세금/공과금</option>
+                        <option value="식대/복리후생">식대/복리후생</option>
+                        <option value="결제수수료">결제수수료</option>
+                        <option value="기타잡비">기타잡비</option>
+                      </select>
+                    </td>
+                    <td style="padding:6px 4px;">
+                      <input type="text" id="quickExpTitle" class="form-control" style="font-size:12px;padding:3px 6px;height:30px;background:#fff;" placeholder="지출 내용 (Enter로 추가)" onkeydown="handleQuickExpKeyDown(event)">
+                    </td>
+                    <td style="padding:6px 4px;">
+                      <input type="number" id="quickExpAmount" class="form-control text-right" style="font-size:12px;padding:3px 6px;height:30px;font-weight:700;background:#fff;" placeholder="금액" onkeydown="handleQuickExpKeyDown(event)">
+                    </td>
+                    <td style="padding:6px 4px;">
+                      <input type="text" id="quickExpPayMethod" class="form-control" style="font-size:11.5px;padding:3px 6px;height:30px;background:#fff;" placeholder="카드/통장/현금" onkeydown="handleQuickExpKeyDown(event)">
+                    </td>
+                    <td style="padding:6px 4px;">
+                      <input type="text" id="quickExpNote" class="form-control" style="font-size:11px;padding:3px 6px;height:30px;background:#fff;" placeholder="메모" onkeydown="handleQuickExpKeyDown(event)">
+                    </td>
+                    <td style="padding:6px 4px;text-align:center;">
+                      <button type="button" class="btn btn-sm btn-primary" onclick="addQuickExpense()" style="padding:4px 12px;font-size:11.5px;font-weight:700;background:#16a34a;border:none;border-radius:6px;white-space:nowrap;cursor:pointer;">
+                        + 추가
+                      </button>
+                    </td>
+                  </tr>
+                </thead>
+                <tbody id="expenseTableBody">
+                  <!-- 동적 렌더링 -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
 
-                <tr class="pl-group-header">
-                  <td colspan="2"><strong>4. 판매비 및 일반관리비 (SG&A)</strong></td>
-                  <td class="text-right text-danger"><strong id="plExpenseTotal">-0원</strong></td>
-                </tr>
-                <!-- 등록된 세부 판관비 항목들이 동적으로 들어갈 컨테이너 -->
-                <tr id="plDynamicExpensePlaceholder" style="display:none;"></tr>
-                <tr>
-                  <td class="pl-indent">기타 잡비 & 포장 부자재 (추정치)</td>
-                  <td><input type="number" id="inputOtherExpense" value="50000" class="input-inline" onchange="calculatePL()"></td>
-                  <td class="text-right text-danger" id="plOtherExpense">-50,000원</td>
-                </tr>
-                <tr>
-                  <td class="pl-indent">세금 적립금 (부가세/종소세 예상 10%)</td>
-                  <td></td>
-                  <td class="text-right text-danger" id="plTaxReserve">-0원</td>
-                </tr>
+        <!-- 탭 2. 손익계산서 & 순자산 -->
+        <div id="pnlContainer" style="display:none;">
+          <!-- 순자산 요약 배너 -->
+          <div class="asset-banner">
+            <div class="asset-text">
+              <span class="sub">리사님의 현재 알짜 순자산 가치</span>
+              <h1 class="asset-amount" id="totalNetAssetValue">0원</h1>
+              <p class="asset-formula">
+                <strong>[계산 공식]</strong> (통장 잔고 <span id="fBank">0원</span>) + (정산 미수금 <span id="fReceivable">0원</span>) + (창고 재고가치 <span id="fStock">0원</span>) + (추가 자산 <span id="fExtraAsset" style="color:#bbf7d0;font-weight:700;">+0원</span>) - (나갈 카드값 <span id="fCard">0원</span>) - (등록 부채 <span id="fExtraDebt" style="color:#fecaca;font-weight:700;">-0원</span>)
+              </p>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:8px;align-items:flex-end;">
+              <div class="asset-chart-badge">
+                <i data-feather="shield"></i>
+                <span>재무 건전성 우수</span>
+              </div>
+              <button class="btn btn-sm" onclick="openCustomAssetModal()" style="background:rgba(255,255,255,0.2);color:#fff;border:1px solid rgba(255,255,255,0.4);font-weight:700;border-radius:8px;padding:6px 14px;cursor:pointer;">
+                💎 자산/부채 등록·관리
+              </button>
+            </div>
+          </div>
 
-                <tr class="pl-final-row">
-                  <td colspan="2"><strong>🏆 최종 당기순이익 (Net Profit)</strong></td>
-                  <td class="text-right"><h3 class="final-profit" id="plFinalNetProfit">0원</h3></td>
-                </tr>
-              </tbody>
-            </table>
+          <!-- 손익계산서 표 -->
+          <div class="panel mt-4">
+            <div class="panel-header flex-between flex-wrap gap-2">
+              <div class="panel-title">
+                <i data-feather="file-text"></i>
+                <h3 id="plTableTitle">2026 연간 경영 손익계산서 (P&L)</h3>
+              </div>
+              <!-- 년도 선택 기능 ⭐ -->
+              <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                <label for="plYearSelect" style="font-size:12.5px;font-weight:700;color:#334155;">📅 년도 선택:</label>
+                <select id="plYearSelect" class="select-box" onchange="calculatePL()" style="font-weight:700;font-size:13.5px;padding:5px 12px;border-radius:8px;border:1.5px solid #3b82f6;background:#eff6ff;color:#1e40af;cursor:pointer;">
+                  <option value="2026" selected>📅 2026년 손익계산서</option>
+                  <option value="2025">📅 2025년 손익계산서</option>
+                  <option value="ALL">🌐 전체 연도 통합 손익계산서</option>
+                </select>
+                <button class="btn btn-sm btn-primary" onclick="switchPlTab('expense')" style="font-weight:700;background:#4f46e5;border:none;">
+                  💸 비용(판관비) 입력하러 가기
+                </button>
+              </div>
+            </div>
+            <div class="panel-body">
+              <table class="pl-table">
+                <tbody>
+                  <tr class="pl-group-header">
+                    <td colspan="2"><strong>1. 매출 (Revenue)</strong></td>
+                    <td class="text-right"><strong id="plSalesTotal">0원</strong></td>
+                  </tr>
+                  <tr>
+                    <td class="pl-indent">총 판매 매출액 (판매가+배송비)</td>
+                    <td></td>
+                    <td class="text-right" id="plGrossSales">0원</td>
+                  </tr>
+                  <tr>
+                    <td class="pl-indent">마켓 수수료 차감액 (판매가 - 결제기준가)</td>
+                    <td></td>
+                    <td class="text-right text-danger" id="plMarketFees">-0원</td>
+                  </tr>
+                  <tr class="pl-subtotal">
+                    <td class="pl-indent"><strong>순 매출액 (결제기준가 합계)</strong></td>
+                    <td></td>
+                    <td class="text-right"><strong id="plNetSales">0원</strong></td>
+                  </tr>
+
+                  <tr class="pl-group-header">
+                    <td colspan="2"><strong>2. 매출원가 (Cost of Goods Sold)</strong></td>
+                    <td class="text-right text-danger"><strong id="plCogsTotal">-0원</strong></td>
+                  </tr>
+                  <tr>
+                    <td class="pl-indent">실 상품 매입비용 (결제가 합산)</td>
+                    <td></td>
+                    <td class="text-right text-danger" id="plPurchaseCost">-0원</td>
+                  </tr>
+
+                  <tr class="pl-total-row">
+                    <td colspan="2"><strong>3. 매출총이익 (Gross Profit)</strong></td>
+                    <td class="text-right"><strong class="text-success" id="plGrossProfit">0원</strong></td>
+                  </tr>
+
+                  <tr class="pl-group-header">
+                    <td colspan="2"><strong>4. 판매비 및 일반관리비 (SG&A)</strong></td>
+                    <td class="text-right text-danger"><strong id="plExpenseTotal">-0원</strong></td>
+                  </tr>
+                  <!-- 비용 탭에서 등록된 세부 지출 항목들이 선택된 년도에 맞게 동적으로 표시 -->
+                  <tr id="plDynamicExpensePlaceholder" style="display:none;"></tr>
+                  <tr>
+                    <td class="pl-indent">기타 잡비 & 포장 부자재 (추정치)</td>
+                    <td><input type="number" id="inputOtherExpense" value="50000" class="input-inline" onchange="calculatePL()"></td>
+                    <td class="text-right text-danger" id="plOtherExpense">-50,000원</td>
+                  </tr>
+                  <tr>
+                    <td class="pl-indent">세금 적립금 (부가세/종소세 예상 10%)</td>
+                    <td></td>
+                    <td class="text-right text-danger" id="plTaxReserve">-0원</td>
+                  </tr>
+
+                  <tr class="pl-final-row">
+                    <td colspan="2"><strong>🏆 최종 당기순이익 (Net Profit)</strong></td>
+                    <td class="text-right"><h3 class="final-profit" id="plFinalNetProfit">0원</h3></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       </section>
@@ -1950,7 +2103,7 @@
   <!-- ⚡ 실시간 플로팅 토스트 컨테이너 -->
   <div class="radar-toast-container" id="radarToastContainer"></div>
 
-  <script src="sourcingRadar.js?v=20261124_11"></script>
-  <script src="app.js?v=20261124_11"></script>
+  <script src="sourcingRadar.js?v=20261124_12"></script>
+  <script src="app.js?v=20261124_12"></script>
 </body>
 </html>

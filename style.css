@@ -190,9 +190,10 @@ body {
   color: #312e81 !important;
 }
 
-/* 주문장 뷰 모드 전환 및 카드 결제 상세 탭 크기 시원하게 확대 및 1줄 고정 */
+/* 주문장 뷰 모드 전환, 카드 결제 상세, 비용&손익 탭 크기 시원하게 확대 및 1줄 고정 */
 #ordersViewToggleGroup,
-#cardTxToggleGroup {
+#cardTxToggleGroup,
+#plTabToggleGroup {
   display: inline-flex;
   background: #eef2f6;
   padding: 4px;
@@ -201,7 +202,8 @@ body {
 }
 
 #ordersViewToggleGroup .toggle-btn,
-#cardTxToggleGroup .toggle-btn {
+#cardTxToggleGroup .toggle-btn,
+#plTabToggleGroup .toggle-btn {
   padding: 9px 20px;
   font-size: 13.5px;
   font-weight: 600;
@@ -211,7 +213,8 @@ body {
 }
 
 #ordersViewToggleGroup .toggle-btn.active,
-#cardTxToggleGroup .toggle-btn.active {
+#cardTxToggleGroup .toggle-btn.active,
+#plTabToggleGroup .toggle-btn.active {
   font-weight: 700;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
 }

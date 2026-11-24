@@ -54,10 +54,14 @@ const AppState = {
     '옥션': 20000
   },
 
-  // 3-B. 손익계산서 & 순자산 (판관비 및 자산/부채)
+  // 3-B. 비용 & 손익계산서 (판관비 및 자산/부채)
+  plViewTab: 'expense',
+  editingExpenseId: null,
   customExpenses: [
-    { id: 'exp_1', category: '광고비', title: '쿠팡 키워드 검색광고', amount: 150000, biz: '사업자B', month: '2026-11', note: '쿠팡 윙 판매자 광고 집행비' },
-    { id: 'exp_2', category: '프로그램비', title: '플레이오토 쇼핑몰 통합관리 솔루션', amount: 55000, biz: 'ALL', month: '2026-11', note: '주문수집 및 송장자동등록 솔루션 월이용료' }
+    { id: 'exp_1', date: '2026-11-15', category: '광고비', title: '쿠팡 키워드 검색광고', amount: 150000, biz: '사업자B', paymentMethod: '신한은행', note: '쿠팡 윙 판매자 광고 집행비' },
+    { id: 'exp_2', date: '2026-11-05', category: '프로그램비', title: '플레이오토 쇼핑몰 통합관리 솔루션', amount: 55000, biz: 'ALL', paymentMethod: '국민카드', note: '주문수집 및 송장자동등록 솔루션 월이용료' },
+    { id: 'exp_3', date: '2026-10-25', category: '포장/택배비', title: '택배 박스 및 에어캡 부자재 구매', amount: 78000, biz: '사업자A', paymentMethod: '국민카드', note: '1호/2호 박스 200장' },
+    { id: 'exp_4', date: '2026-10-20', category: '광고비', title: '네이버 쇼핑 검색광고 충전', amount: 100000, biz: '사업자A', paymentMethod: '기업은행', note: '스마트스토어 주력상품 CPC 광고' }
   ],
   customAssets: [
     { id: 'asset_1', type: '자산', category: '임차보증금', title: '사무실 임차보증금', amount: 20000000, biz: '사업자A', note: '마포구 사무실 보증금' },
@@ -202,7 +206,7 @@ function switchNav(targetId) {
     cardsView: '💳 카드사별 결제 관리 (카드명의 구분)',
     settlementView: '🏦 판매처 정산 미수금 & 통장',
     inventoryView: '📦 사입 상품 재고 현황 & 재고 평가액',
-    plView: '📈 2026 연간 손익계산서 & 순자산',
+    plView: '💸 비용 & 손익계산서',
     sourcingRadarView: '🎯 지마켓 베스트 소싱 & 실시간 최저가 레이더',
     uploadView: '📁 엑셀 / CSV 주문 파일 업로드'
   };
@@ -212,6 +216,11 @@ function switchNav(targetId) {
 
   if (targetId === 'dashboardView' && marketChartInstance) {
     marketChartInstance.resize();
+  }
+
+  if (targetId === 'plView') {
+    initExpenseView();
+    calculatePL();
   }
 
   if (targetId === 'sourcingRadarView' && window.renderSourcingRadar) {
@@ -320,6 +329,27 @@ function populateBusinessSelects() {
     formAssetBiz.innerHTML = `<option value="ALL">전체 공통 (ALL)</option>` +
       bizList.map(b => `<option value="${escapeHtml(b.name)}">${escapeHtml(b.name)}</option>`).join('');
     if (curVal) formAssetBiz.value = curVal;
+  }
+
+  // 5. 비용 퀵 입력 사업자 (#quickExpBiz)
+  const quickExpBiz = document.getElementById('quickExpBiz');
+  if (quickExpBiz) {
+    const curVal = quickExpBiz.value;
+    quickExpBiz.innerHTML = `<option value="ALL">공통(ALL)</option>` +
+      bizList.map(b => `<option value="${escapeHtml(b.name)}">${escapeHtml(b.name)}</option>`).join('');
+    if (curVal) quickExpBiz.value = curVal;
+    else if (AppState.currentBizFilter !== 'ALL' && bizList.some(b => b.name === AppState.currentBizFilter)) {
+      quickExpBiz.value = AppState.currentBizFilter;
+    }
+  }
+
+  // 6. 비용 필터 사업자 (#expenseFilterBiz)
+  const expenseFilterBiz = document.getElementById('expenseFilterBiz');
+  if (expenseFilterBiz) {
+    const curVal = expenseFilterBiz.value;
+    expenseFilterBiz.innerHTML = `<option value="ALL">모든 사업자</option>` +
+      bizList.map(b => `<option value="${escapeHtml(b.name)}">${escapeHtml(b.name)}</option>`).join('');
+    if (curVal) expenseFilterBiz.value = curVal;
   }
 }
 
@@ -591,6 +621,11 @@ function loadStateFromStorage() {
     recalculateAllBankBalances();
     if (savedExpenses) {
       AppState.customExpenses = JSON.parse(savedExpenses);
+      (AppState.customExpenses || []).forEach(e => {
+        if (!e.date && e.month) {
+          e.date = e.month + '-01';
+        }
+      });
     }
     if (savedAssets) {
       AppState.customAssets = JSON.parse(savedAssets);
@@ -3647,11 +3682,33 @@ function renderInventoryView() {
 }
 
 /**
- * 6. 손익계산서 & 순자산 (판관비 항목 연동 및 순자산 계산 공식 완벽 반영)
+ * 6. 비용 & 손익계산서 & 순자산 (년도별 손익계산서 및 일자별 비용 연동)
  */
 function calculatePL() {
-  const countableOrders = getCountableOrders();
-  const allOrders = getBizOrders();
+  const yearSelect = document.getElementById('plYearSelect');
+  const selectedYear = yearSelect ? yearSelect.value : (AppState.selectedPlYear || '2026');
+  AppState.selectedPlYear = selectedYear;
+
+  const tableTitle = document.getElementById('plTableTitle');
+  if (tableTitle) {
+    if (selectedYear === 'ALL') tableTitle.textContent = '🌐 전체 연도 통합 경영 손익계산서 (P&L)';
+    else tableTitle.textContent = `📅 ${selectedYear}년 경영 손익계산서 (P&L)`;
+  }
+
+  // 1. 주문 필터링: 선택된 사업자 + 선택된 년도
+  const baseCountable = getCountableOrders();
+  const baseAllOrders = getBizOrders();
+
+  const countableOrders = baseCountable.filter(o => {
+    if (selectedYear === 'ALL') return true;
+    const d = o.orderDate || '';
+    return d.startsWith(selectedYear);
+  });
+  const allOrders = baseAllOrders.filter(o => {
+    if (selectedYear === 'ALL') return true;
+    const d = o.orderDate || '';
+    return d.startsWith(selectedYear);
+  });
 
   let grossSales = 0;
   let netSales = 0;
@@ -3669,10 +3726,13 @@ function calculatePL() {
   const marketFees = grossSales - netSales;
   const grossProfit = netSales - purchaseCost;
 
-  // 1. 등록된 세부 판관비 항목 합산 및 손익계산서 동적 주입
+  // 2. 등록된 비용(판관비) 항목 합산: 선택된 사업자 + 선택된 년도
   let customExpTotal = 0;
-  const filteredExpenses = AppState.customExpenses.filter(exp => {
-    return (AppState.currentBizFilter === 'ALL' || exp.biz === 'ALL' || exp.biz === AppState.currentBizFilter);
+  const filteredExpenses = (AppState.customExpenses || []).filter(exp => {
+    const bizMatch = (AppState.currentBizFilter === 'ALL' || exp.biz === 'ALL' || exp.biz === AppState.currentBizFilter);
+    const d = exp.date || exp.month || '';
+    const yearMatch = (selectedYear === 'ALL' || d.startsWith(selectedYear));
+    return bizMatch && yearMatch;
   });
 
   const placeholder = document.getElementById('plDynamicExpensePlaceholder');
@@ -3687,11 +3747,11 @@ function calculatePL() {
         return `
           <tr class="pl-dynamic-exp-row" style="background:#fffaf0;">
             <td class="pl-indent">
-              <span class="badge" style="background:#fee2e2;color:#991b1b;font-size:10.5px;margin-right:6px;">${exp.category}</span>
-              ${exp.title}
-              <span style="font-size:11px;color:#64748b;margin-left:4px;">(${exp.biz})</span>
+              <span class="badge" style="background:#fee2e2;color:#991b1b;font-size:10.5px;margin-right:6px;">${escapeHtml(exp.category || '기타')}</span>
+              ${escapeHtml(exp.title)}
+              <span style="font-size:11px;color:#64748b;margin-left:4px;">(${escapeHtml(exp.date || '')} · ${escapeHtml(exp.biz || 'ALL')})</span>
             </td>
-            <td style="font-size:11px;color:#94a3b8;">${exp.note || ''}</td>
+            <td style="font-size:11px;color:#94a3b8;">${escapeHtml(exp.note || exp.paymentMethod || '')}</td>
             <td class="text-right text-danger">-${formatKRW(exp.amount || 0)}</td>
           </tr>
         `;
@@ -3809,18 +3869,369 @@ function calculatePL() {
 }
 
 /**
- * 💸 판관비(추가 비용) 모달 및 관리 핸들러
+ * =========================================================
+ * 💸 비용 관리 (일자별 지출 장부) & 손익계산서 탭 핸들러
+ * =========================================================
+ */
+
+/**
+ * 비용 & 손익계산서 탭 전환 (expense: 비용 관리 / pnl: 손익계산서 & 순자산)
+ */
+function switchPlTab(tab) {
+  AppState.plViewTab = tab;
+  const expCont = document.getElementById('expenseContainer');
+  const pnlCont = document.getElementById('pnlContainer');
+  const btnExp = document.getElementById('btnTabExpense');
+  const btnPnl = document.getElementById('btnTabProfitLoss');
+  const desc = document.getElementById('plTabDesc');
+
+  if (btnExp && btnPnl) {
+    btnExp.classList.toggle('active', tab === 'expense');
+    btnPnl.classList.toggle('active', tab === 'pnl');
+  }
+
+  if (expCont) expCont.style.display = (tab === 'expense') ? 'block' : 'none';
+  if (pnlCont) pnlCont.style.display = (tab === 'pnl') ? 'block' : 'none';
+
+  if (desc) {
+    if (tab === 'expense') {
+      desc.textContent = '💡 통장거래처럼 광고비, 프로그램비 등 지출 내역을 일자별로 쉽고 빠르게 기록합니다.';
+    } else {
+      desc.textContent = '📊 선택한 연도의 총 매출액, 원가, 판관비 및 당기순이익과 알짜 순자산을 확인합니다.';
+    }
+  }
+
+  if (tab === 'expense') {
+    initExpenseView();
+  } else {
+    populatePlYears();
+    calculatePL();
+  }
+  if (window.feather) feather.replace();
+}
+
+/**
+ * 손익계산서 년도 셀렉트 박스 동적 옵션 생성
+ */
+function populatePlYears() {
+  const select = document.getElementById('plYearSelect');
+  if (!select) return;
+
+  const years = new Set(['2026', '2025']);
+  (AppState.rawOrders || []).forEach(o => {
+    if (o.orderDate && o.orderDate.length >= 4) {
+      years.add(o.orderDate.substring(0, 4));
+    }
+  });
+  (AppState.customExpenses || []).forEach(e => {
+    const d = e.date || e.month || '';
+    if (d.length >= 4) {
+      years.add(d.substring(0, 4));
+    }
+  });
+
+  const sortedYears = Array.from(years).sort().reverse();
+  const currentVal = select.value || AppState.selectedPlYear || '2026';
+
+  let html = sortedYears.map(y => `<option value="${y}" ${y === currentVal ? 'selected' : ''}>📅 ${y}년 손익계산서</option>`).join('');
+  html += `<option value="ALL" ${currentVal === 'ALL' ? 'selected' : ''}>🌐 전체 연도 통합 손익계산서</option>`;
+  select.innerHTML = html;
+}
+
+/**
+ * 비용 뷰 초기화 (기본 일자, 사업자 목록 동기화, 테이블 렌더링)
+ */
+function initExpenseView() {
+  const quickDate = document.getElementById('quickExpDate');
+  if (quickDate && !quickDate.value) {
+    quickDate.value = formatDateForInput(new Date());
+  }
+
+  populateBusinessSelects();
+  populatePlYears();
+  renderExpenseTable();
+}
+
+/**
+ * 일자별 비용(지출) 내역 테이블 렌더링
+ */
+function renderExpenseTable() {
+  const tbody = document.getElementById('expenseTableBody');
+  const countBadge = document.getElementById('expenseCountBadge');
+  const totalAmountEl = document.getElementById('expenseTotalAmount');
+  const thisMonthAmountEl = document.getElementById('expenseThisMonthAmount');
+  if (!tbody) return;
+
+  const filterYear = document.getElementById('expenseFilterYear') ? document.getElementById('expenseFilterYear').value : 'ALL';
+  const filterMonth = document.getElementById('expenseFilterMonth') ? document.getElementById('expenseFilterMonth').value : 'ALL';
+  const filterBiz = document.getElementById('expenseFilterBiz') ? document.getElementById('expenseFilterBiz').value : 'ALL';
+  const filterCat = document.getElementById('expenseFilterCat') ? document.getElementById('expenseFilterCat').value : 'ALL';
+
+  let list = (AppState.customExpenses || []).slice();
+
+  // 날짜 최신순 정렬
+  list.sort((a, b) => {
+    const dateA = a.date || a.month || '';
+    const dateB = b.date || b.month || '';
+    return dateB.localeCompare(dateA);
+  });
+
+  // 전역 사이드바 사업자 필터 적용
+  if (AppState.currentBizFilter !== 'ALL') {
+    list = list.filter(e => e.biz === 'ALL' || e.biz === AppState.currentBizFilter);
+  }
+
+  // 테이블 자체 필터 적용
+  if (filterYear !== 'ALL') {
+    list = list.filter(e => (e.date || e.month || '').startsWith(filterYear));
+  }
+  if (filterMonth !== 'ALL') {
+    list = list.filter(e => {
+      const d = e.date || e.month || '';
+      return d.includes(`-${filterMonth}-`) || d.endsWith(`-${filterMonth}`) || (d.length >= 7 && d.substring(5, 7) === filterMonth);
+    });
+  }
+  if (filterBiz !== 'ALL') {
+    list = list.filter(e => e.biz === filterBiz);
+  }
+  if (filterCat !== 'ALL') {
+    list = list.filter(e => e.category === filterCat);
+  }
+
+  // 요약 통계 집계
+  let totalSum = 0;
+  let thisMonthSum = 0;
+  const now = new Date();
+  const currentMonthPrefix = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+
+  (AppState.customExpenses || []).forEach(e => {
+    const amt = e.amount || 0;
+    const bizOk = (AppState.currentBizFilter === 'ALL' || e.biz === 'ALL' || e.biz === AppState.currentBizFilter);
+    if (bizOk) {
+      totalSum += amt;
+      const d = e.date || e.month || '';
+      if (d.startsWith(currentMonthPrefix)) {
+        thisMonthSum += amt;
+      }
+    }
+  });
+
+  if (countBadge) countBadge.textContent = `${list.length}건`;
+  if (totalAmountEl) totalAmountEl.textContent = formatKRW(totalSum);
+  if (thisMonthAmountEl) thisMonthAmountEl.textContent = formatKRW(thisMonthSum);
+
+  if (list.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;padding:36px;color:#94a3b8;font-size:13px;">등록된 비용 내역이 없습니다. 위 초록색 입력줄에서 날짜와 금액을 넣고 [+ 추가]를 눌러보세요!</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = list.map(exp => {
+    const isEditing = AppState.editingExpenseId === exp.id;
+    if (isEditing) {
+      return renderExpenseInlineEditRow(exp);
+    }
+    const bStyle = getBizBadgeStyle(exp.biz);
+    return `
+      <tr style="border-bottom:1px solid #f1f5f9;">
+        <td style="font-weight:700;color:#1e293b;white-space:nowrap;">${escapeHtml(exp.date || exp.month || '')}</td>
+        <td>
+          <span class="badge" style="background:${bStyle.bg};color:${bStyle.color};font-size:11px;font-weight:700;">
+            ${escapeHtml(exp.biz || '공통')}
+          </span>
+        </td>
+        <td>
+          <span class="badge" style="background:#fee2e2;color:#991b1b;font-size:11px;font-weight:700;">
+            ${escapeHtml(exp.category || '기타')}
+          </span>
+        </td>
+        <td style="font-weight:600;color:#1e293b;">
+          ${escapeHtml(exp.title || '')}
+        </td>
+        <td style="text-align:right;font-weight:700;color:#dc2626;font-size:13.5px;">
+          -${formatKRW(exp.amount || 0)}
+        </td>
+        <td style="color:#475569;font-size:12px;">
+          ${escapeHtml(exp.paymentMethod || '-')}
+        </td>
+        <td style="color:#64748b;font-size:12px;">
+          ${escapeHtml(exp.note || '-')}
+        </td>
+        <td style="text-align:center;white-space:nowrap;">
+          <button type="button" class="btn btn-xs btn-secondary" onclick="editExpenseInline('${exp.id}')" title="수정" style="padding:2px 7px;font-size:11px;margin-right:3px;">
+            ✏️
+          </button>
+          <button type="button" class="btn btn-xs btn-danger" onclick="deleteExpense('${exp.id}')" title="삭제" style="padding:2px 7px;font-size:11px;background:#fee2e2;color:#b91c1c;border:none;border-radius:4px;cursor:pointer;">
+            🗑️
+          </button>
+        </td>
+      </tr>
+    `;
+  }).join('');
+}
+
+/**
+ * 인라인 수정 행 HTML 생성
+ */
+function renderExpenseInlineEditRow(exp) {
+  const bizOptions = [
+    `<option value="ALL" ${exp.biz === 'ALL' ? 'selected' : ''}>공통(ALL)</option>`,
+    ...(AppState.businesses || []).map(b => `<option value="${escapeHtml(b.name)}" ${exp.biz === b.name ? 'selected' : ''}>${escapeHtml(b.name)}</option>`)
+  ].join('');
+
+  const categories = ['광고비', '프로그램비', '임차료', '포장/택배비', '소모품비', '세금/공과금', '식대/복리후생', '결제수수료', '기타잡비'];
+  const catOptions = categories.map(c => `<option value="${c}" ${exp.category === c ? 'selected' : ''}>${c}</option>`).join('');
+
+  return `
+    <tr style="background:#fefce8;border:2px solid #eab308;">
+      <td style="padding:4px;">
+        <input type="date" id="inlineExpDate_${exp.id}" class="form-control" value="${exp.date || exp.month || ''}" style="font-size:11px;padding:2px 4px;height:28px;background:#fff;">
+      </td>
+      <td style="padding:4px;">
+        <select id="inlineExpBiz_${exp.id}" class="form-control" style="font-size:11px;padding:2px 4px;height:28px;background:#fff;">
+          ${bizOptions}
+        </select>
+      </td>
+      <td style="padding:4px;">
+        <select id="inlineExpCat_${exp.id}" class="form-control" style="font-size:11px;padding:2px 4px;height:28px;background:#fff;">
+          ${catOptions}
+        </select>
+      </td>
+      <td style="padding:4px;">
+        <input type="text" id="inlineExpTitle_${exp.id}" class="form-control" value="${escapeHtml(exp.title || '')}" style="font-size:12px;padding:2px 6px;height:28px;background:#fff;">
+      </td>
+      <td style="padding:4px;">
+        <input type="number" id="inlineExpAmt_${exp.id}" class="form-control text-right" value="${exp.amount || 0}" style="font-size:12px;padding:2px 6px;height:28px;font-weight:700;background:#fff;">
+      </td>
+      <td style="padding:4px;">
+        <input type="text" id="inlineExpPay_${exp.id}" class="form-control" value="${escapeHtml(exp.paymentMethod || '')}" style="font-size:11.5px;padding:2px 6px;height:28px;background:#fff;">
+      </td>
+      <td style="padding:4px;">
+        <input type="text" id="inlineExpNote_${exp.id}" class="form-control" value="${escapeHtml(exp.note || '')}" style="font-size:11px;padding:2px 6px;height:28px;background:#fff;">
+      </td>
+      <td style="padding:4px;text-align:center;white-space:nowrap;">
+        <button type="button" class="btn btn-xs btn-primary" onclick="saveExpenseInline('${exp.id}')" style="padding:2px 7px;font-size:11px;background:#16a34a;border:none;margin-right:2px;cursor:pointer;">저장</button>
+        <button type="button" class="btn btn-xs btn-secondary" onclick="cancelEditExpenseInline()" style="padding:2px 7px;font-size:11px;cursor:pointer;">취소</button>
+      </td>
+    </tr>
+  `;
+}
+
+/**
+ * ⚡ 엑셀식 빠른 비용 한 줄 추가
+ */
+function addQuickExpense() {
+  const dateEl = document.getElementById('quickExpDate');
+  const bizEl = document.getElementById('quickExpBiz');
+  const catEl = document.getElementById('quickExpCategory');
+  const titleEl = document.getElementById('quickExpTitle');
+  const amountEl = document.getElementById('quickExpAmount');
+  const payEl = document.getElementById('quickExpPayMethod');
+  const noteEl = document.getElementById('quickExpNote');
+
+  const date = dateEl ? dateEl.value : '';
+  const biz = bizEl ? bizEl.value : 'ALL';
+  const category = catEl ? catEl.value : '기타잡비';
+  const title = titleEl ? titleEl.value.trim() : '';
+  const amount = amountEl ? parseFloat(amountEl.value) : 0;
+  const paymentMethod = payEl ? payEl.value.trim() : '';
+  const note = noteEl ? noteEl.value.trim() : '';
+
+  if (!title) {
+    alert('비용 내용(항목명)을 입력해주세요, 리사님!');
+    if (titleEl) titleEl.focus();
+    return;
+  }
+  if (!amount || amount <= 0) {
+    alert('금액을 0원보다 크게 입력해주세요!');
+    if (amountEl) amountEl.focus();
+    return;
+  }
+
+  const finalDate = date || formatDateForInput(new Date());
+  const newExp = {
+    id: 'exp_' + Date.now(),
+    date: finalDate,
+    category,
+    title,
+    amount,
+    biz: biz || 'ALL',
+    paymentMethod: paymentMethod || '카드',
+    note
+  };
+
+  if (!AppState.customExpenses) AppState.customExpenses = [];
+  AppState.customExpenses.unshift(newExp);
+  saveStateToStorage();
+
+  // 입력칸 초기화
+  if (titleEl) titleEl.value = '';
+  if (amountEl) amountEl.value = '';
+  if (noteEl) noteEl.value = '';
+  if (titleEl) titleEl.focus();
+
+  renderExpenseTable();
+  calculatePL();
+}
+
+function handleQuickExpKeyDown(event) {
+  if (event.key === 'Enter') {
+    event.preventDefault();
+    addQuickExpense();
+  }
+}
+
+function editExpenseInline(id) {
+  AppState.editingExpenseId = id;
+  renderExpenseTable();
+}
+
+function cancelEditExpenseInline() {
+  AppState.editingExpenseId = null;
+  renderExpenseTable();
+}
+
+function saveExpenseInline(id) {
+  const exp = (AppState.customExpenses || []).find(e => e.id === id);
+  if (!exp) return;
+
+  const dateEl = document.getElementById(`inlineExpDate_${id}`);
+  const bizEl = document.getElementById(`inlineExpBiz_${id}`);
+  const catEl = document.getElementById(`inlineExpCat_${id}`);
+  const titleEl = document.getElementById(`inlineExpTitle_${id}`);
+  const amtEl = document.getElementById(`inlineExpAmt_${id}`);
+  const payEl = document.getElementById(`inlineExpPay_${id}`);
+  const noteEl = document.getElementById(`inlineExpNote_${id}`);
+
+  if (dateEl) exp.date = dateEl.value;
+  if (bizEl) exp.biz = bizEl.value;
+  if (catEl) exp.category = catEl.value;
+  if (titleEl) exp.title = titleEl.value.trim() || exp.title;
+  if (amtEl) exp.amount = parseFloat(amtEl.value) || 0;
+  if (payEl) exp.paymentMethod = payEl.value.trim();
+  if (noteEl) exp.note = noteEl.value.trim();
+
+  AppState.editingExpenseId = null;
+  saveStateToStorage();
+  renderExpenseTable();
+  calculatePL();
+}
+
+function deleteExpense(id) {
+  const exp = (AppState.customExpenses || []).find(e => e.id === id);
+  if (!exp) return;
+  if (!confirm(`'${exp.title}' (${formatKRW(exp.amount)}) 비용 항목을 삭제하시겠습니까?`)) return;
+
+  AppState.customExpenses = AppState.customExpenses.filter(e => e.id !== id);
+  saveStateToStorage();
+  renderExpenseTable();
+  calculatePL();
+}
+
+/**
+ * 💸 판관비(추가 비용) 모달 및 관리 핸들러 (이전 모달 호환용)
  */
 function openCustomExpenseModal() {
-  populateBusinessSelects();
-  document.getElementById('formExpTitle').value = '';
-  document.getElementById('formExpAmount').value = '';
-  document.getElementById('formExpNote').value = '';
-  renderCustomExpenses();
-
-  const overlay = document.getElementById('customExpenseModalOverlay');
-  if (overlay) overlay.style.display = 'flex';
-  if (window.feather) feather.replace();
+  switchPlTab('expense');
 }
 
 function closeCustomExpenseModal() {
@@ -3843,61 +4254,28 @@ function saveCustomExpense() {
 
   const newExp = {
     id: 'exp_' + Date.now(),
+    date: month ? `${month}-01` : formatDateForInput(new Date()),
     category,
     title,
     amount,
     biz,
-    month,
     note
   };
 
   AppState.customExpenses.unshift(newExp);
   saveStateToStorage();
-  document.getElementById('formExpTitle').value = '';
-  document.getElementById('formExpAmount').value = '';
-  document.getElementById('formExpNote').value = '';
-  renderCustomExpenses();
+  closeCustomExpenseModal();
+  renderExpenseTable();
   calculatePL();
   alert(`비용 항목[${title}]이(가) 등록되었습니다!`);
 }
 
 function deleteCustomExpense(id) {
-  if (!confirm('이 비용 항목을 삭제하시겠습니까?')) return;
-  AppState.customExpenses = AppState.customExpenses.filter(e => e.id !== id);
-  saveStateToStorage();
-  renderCustomExpenses();
-  calculatePL();
+  deleteExpense(id);
 }
 
 function renderCustomExpenses() {
-  const tbody = document.getElementById('customExpenseTableBody');
-  const badgeTotal = document.getElementById('customExpTotalBadge');
-  if (!tbody) return;
-
-  if (AppState.customExpenses.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:24px;color:#94a3b8;">등록된 판관비 항목이 없습니다.</td></tr>';
-    if (badgeTotal) badgeTotal.textContent = '0원';
-    return;
-  }
-
-  let total = 0;
-  tbody.innerHTML = AppState.customExpenses.map(exp => {
-    total += (exp.amount || 0);
-    return `
-      <tr>
-        <td><span class="badge" style="background:#fee2e2;color:#991b1b;font-weight:700;">${exp.category}</span></td>
-        <td><strong>${exp.title}</strong>${exp.note ? `<div style="font-size:11px;color:#64748b;">${exp.note}</div>` : ''}</td>
-        <td style="text-align:right;"><strong class="text-danger">${formatKRW(exp.amount)}</strong></td>
-        <td><span class="badge" style="background:#f1f5f9;color:#334155;">${exp.biz}</span></td>
-        <td style="font-size:12px;color:#64748b;">${exp.month || '-'}</td>
-        <td style="text-align:center;">
-          <button class="btn btn-sm btn-secondary" onclick="deleteCustomExpense('${exp.id}')" style="font-size:11px;padding:2px 6px;color:#dc2626;">🗑️</button>
-        </td>
-      </tr>
-    `;
-  }).join('');
-
-  if (badgeTotal) badgeTotal.textContent = formatKRW(total);
+  renderExpenseTable();
 }
 
 /**
@@ -4767,7 +5145,18 @@ window.previewBankBalanceCalc = previewBankBalanceCalc;
 window.recalculateAllBankBalances = recalculateAllBankBalances;
 window.getBankAccountStats = getBankAccountStats;
 
-// 4. 판관비 & 순자산
+// 4. 비용 & 판관비 & 손익계산서 & 순자산
+window.switchPlTab = switchPlTab;
+window.initExpenseView = initExpenseView;
+window.populatePlYears = populatePlYears;
+window.renderExpenseTable = renderExpenseTable;
+window.addQuickExpense = addQuickExpense;
+window.handleQuickExpKeyDown = handleQuickExpKeyDown;
+window.editExpenseInline = editExpenseInline;
+window.cancelEditExpenseInline = cancelEditExpenseInline;
+window.saveExpenseInline = saveExpenseInline;
+window.deleteExpense = deleteExpense;
+window.calculatePL = calculatePL;
 window.openCustomExpenseModal = openCustomExpenseModal;
 window.closeCustomExpenseModal = closeCustomExpenseModal;
 window.saveCustomExpense = saveCustomExpense;
