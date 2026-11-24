@@ -18,55 +18,28 @@ const AppState = {
   selectedOrderStage: 'ALL',  // 주문구분 필터 (대기/완료/취소/반품/교환)
   selectedPurchaseStage: 'ALL',// 발주상태 필터 (완료/반품/취소)
 
-  // 1. 카드사 결제일 & 청구기간 관리
+  // 1. 카드사 결제일 & 청구기간 관리 (기본 템플릿)
   cardSettings: [
-    { id: 'card_kb_a', name: '국민카드', holder: '강우석', payDay: 14, billingStartDay: 1, billingEndDay: 31, billingDesc: '전월 1일 ~ 전월 말일', theme: 'theme-blue', note: '소싱처(G마켓, 11번가) 전용, 실적 30만 이상 2% 캐시백' },
-    { id: 'card_samsung_a', name: '삼성카드', holder: '강우석', payDay: 25, billingStartDay: 14, billingEndDay: 13, billingDesc: '전전월 14일 ~ 전월 13일', theme: 'theme-blue', note: '쿠팡 로켓소싱 전용, 무조건 1.2% 포인트' },
-    { id: 'card_woori_b', name: '우리카드', holder: '강우석', payDay: 14, billingStartDay: 1, billingEndDay: 31, billingDesc: '전월 1일 ~ 전월 말일', theme: 'theme-blue', note: '스마트스토어 결제용, 무이자 6개월 할부 혜택' },
-    { id: 'card_smile_b', name: '스마일카드 Edition3', holder: 'tjrdnrkd', payDay: 10, billingStartDay: 28, billingEndDay: 27, billingDesc: '전전월 28일 ~ 전월 27일', theme: 'theme-emerald', note: 'G마켓/옥션 2% 스마일캐시 적립' }
+    { id: 'card_kb_a', name: '국민카드', holder: '리사', payDay: 14, billingStartDay: 1, billingEndDay: 31, billingDesc: '전월 1일 ~ 전월 말일', theme: 'theme-blue', note: '소싱처 전용' },
+    { id: 'card_samsung_a', name: '삼성카드', holder: '리사', payDay: 25, billingStartDay: 14, billingEndDay: 13, billingDesc: '전전월 14일 ~ 전월 13일', theme: 'theme-blue', note: '마켓 결제용' }
   ],
   selectedCardKey: null,
   selectedCardTxTab: 'ALL', // 'ALL', 'CURRENT', 'NEXT'
 
-  // 2. 통장 데이터 (기본 모의 데이터 - 이월금액과 거래내역 합산으로 현재 잔고 자동 계산)
-  bankAccounts: [
-    { id: 1, bankName: '기업은행', name: '기업은행 (주거래 통장)', accountName: '주거래 사업자 통장', accountNum: '010-8829-1234', initialBalance: 14335000, balance: 14500000, biz: '사업자A', note: '스마트스토어 및 주요 오픈마켓 정산 계좌' },
-    { id: 2, bankName: '국민은행', name: '국민은행 (스마트스토어 전용)', accountName: '스마트스토어 전용', accountNum: '421002-01-9988', initialBalance: 9450000, balance: 8200000, biz: '사업자A', note: '국민카드 결제대금 자동이체 계좌' },
-    { id: 3, bankName: '신한은행', name: '신한은행 (쿠팡/올웨이즈 전용)', accountName: '쿠팡/올웨이즈 전용', accountNum: '110-345-678901', initialBalance: 10930000, balance: 11300000, biz: '사업자B', note: '쿠팡 정산금 입금 및 세금 적립 계좌' }
-  ],
+  // 2. 통장 데이터 (실제 데이터 입력 대기 - 빈 상태)
+  bankAccounts: [],
 
-  // 2-B. 통장 거래내역 (입출금 장부)
-  bankTransactions: [
-    { id: 101, accountId: 1, bankName: '기업은행', accountName: '기업은행 (주거래 통장)', accountNum: '010-8829-1234', date: '2026-11-15 10:30', type: '입금', amount: 45000, balanceAfter: 14500000, summary: '스마트스토어 11월 1차 정산금 입금', note: '네이버페이', targetMarket: '스마트스토어' },
-    { id: 102, accountId: 2, bankName: '국민은행', accountName: '국민은행 (스마트스토어 전용)', accountNum: '421002-01-9988', date: '2026-11-14 14:00', type: '출금', amount: 1250000, balanceAfter: 8200000, summary: '국민카드 11월 결제대금 출금', note: '자동이체', targetMarket: 'NONE' },
-    { id: 103, accountId: 3, bankName: '신한은행', accountName: '신한은행 (쿠팡/올웨이즈 전용)', accountNum: '110-345-678901', date: '2026-11-10 11:20', type: '입금', amount: 320000, balanceAfter: 11300000, summary: '쿠팡 11월 주정산금 입금', note: '쿠팡 윙', targetMarket: '쿠팡(신)' },
-    { id: 104, accountId: 1, bankName: '기업은행', accountName: '기업은행 (주거래 통장)', accountNum: '010-8829-1234', date: '2026-11-08 14:10', type: '입금', amount: 120000, balanceAfter: 11000000, summary: 'G마켓 11월 정산금 입금', note: '지마켓글로벌', targetMarket: 'G마켓' },
-    { id: 105, accountId: 3, bankName: '신한은행', accountName: '신한은행 (쿠팡/올웨이즈 전용)', accountNum: '110-345-678901', date: '2026-11-05 09:30', type: '입금', amount: 50000, balanceAfter: 10950000, summary: '올웨이즈 1차 정산 입금', note: '레비잇', targetMarket: '올웨이즈' }
-  ],
+  // 2-B. 통장 거래내역 (입출금 장부 - 실제 데이터 입력 대기)
+  bankTransactions: [],
 
   // 3. 판매처별 기입금 완료 내역
-  marketSettlements: {
-    '스마트스토어': 45000,
-    '쿠팡(신)': 320000,
-    '올웨이즈': 50000,
-    'G마켓': 40000,
-    '카카오 톡스토어': 150000,
-    '옥션': 20000
-  },
+  marketSettlements: {},
 
-  // 3-B. 비용 & 손익계산서 (판관비 및 자산/부채)
+  // 3-B. 비용 & 손익계산서 (판관비 및 자산/부채 - 실제 데이터 입력 대기)
   plViewTab: 'expense',
   editingExpenseId: null,
-  customExpenses: [
-    { id: 'exp_1', date: '2026-11-15', category: '광고비', title: '쿠팡 키워드 검색광고', amount: 150000, biz: '사업자B', paymentMethod: '신한은행', note: '쿠팡 윙 판매자 광고 집행비' },
-    { id: 'exp_2', date: '2026-11-05', category: '프로그램비', title: '플레이오토 쇼핑몰 통합관리 솔루션', amount: 55000, biz: 'ALL', paymentMethod: '국민카드', note: '주문수집 및 송장자동등록 솔루션 월이용료' },
-    { id: 'exp_3', date: '2026-10-25', category: '포장/택배비', title: '택배 박스 및 에어캡 부자재 구매', amount: 78000, biz: '사업자A', paymentMethod: '국민카드', note: '1호/2호 박스 200장' },
-    { id: 'exp_4', date: '2026-10-20', category: '광고비', title: '네이버 쇼핑 검색광고 충전', amount: 100000, biz: '사업자A', paymentMethod: '기업은행', note: '스마트스토어 주력상품 CPC 광고' }
-  ],
-  customAssets: [
-    { id: 'asset_1', type: '자산', category: '임차보증금', title: '사무실 임차보증금', amount: 20000000, biz: '사업자A', note: '마포구 사무실 보증금' },
-    { id: 'asset_2', type: '부채', category: '대출금', title: '소상공인 정책자금 운전자금 대출', amount: 10000000, biz: '사업자A', note: '신용보증재단 2.5% 저리대출' }
-  ],
+  customExpenses: [],
+  customAssets: [],
 
   // 4. 주문장 뷰 모드 ('list', 'daily', 'monthly')
   ordersViewMode: 'list',
@@ -134,9 +107,38 @@ function getOrderActualCost(o) {
   return productCost + deliveryFee;
 }
 
+const CURRENT_APP_DATA_VERSION = '20261124_REAL_DATA_CLEAN_V1';
+
+/**
+ * 🧹 실제 데이터 입력을 위한 기존 모의/가상 데이터 클린업
+ */
+function checkDataVersionMigration() {
+  try {
+    const savedVersion = localStorage.getItem('APP_DATA_VERSION');
+    if (savedVersion !== CURRENT_APP_DATA_VERSION) {
+      localStorage.removeItem(STORAGE_KEY_ORDERS);
+      localStorage.removeItem(STORAGE_KEY_BANKS);
+      localStorage.removeItem(STORAGE_KEY_SETTLE);
+      localStorage.removeItem(STORAGE_KEY_CARDS);
+      localStorage.removeItem(STORAGE_KEY_BANK_TX);
+      localStorage.removeItem(STORAGE_KEY_EXPENSES);
+      localStorage.removeItem(STORAGE_KEY_ASSETS);
+      localStorage.removeItem(STORAGE_KEY_BUSINESSES);
+      localStorage.setItem('APP_DATA_VERSION', CURRENT_APP_DATA_VERSION);
+      return true;
+    }
+  } catch (e) {
+    console.warn('데이터 버전 체크 오류:', e);
+  }
+  return false;
+}
+
 // DOM 로드 시 실행
 document.addEventListener('DOMContentLoaded', () => {
   if (window.feather) feather.replace();
+
+  // 실제 데이터 입력 모드 클린업 체크
+  checkDataVersionMigration();
 
   initNavigation();
   initBusinessSwitcher();
@@ -144,8 +146,8 @@ document.addEventListener('DOMContentLoaded', () => {
   initAuthDemo();
   initFilters();
 
-  // 기본 샘플 데이터 로드
-  loadSampleOrders();
+  // 실제 데이터 복원 및 화면 렌더링 (가상 샘플은 자동 로드하지 않음!)
+  loadStateFromStorage();
 
   // 🎯 지마켓 베스트 100 소싱 레이더 엔진 초기화
   if (window.initSourcingRadar) {
@@ -596,8 +598,8 @@ function loadStateFromStorage() {
     }
     if (!AppState.businesses || !Array.isArray(AppState.businesses) || AppState.businesses.length === 0) {
       AppState.businesses = [
-        { id: 'biz_a', name: '사업자A', owner: '강우석', regNum: '', desc: '스마트스토어 / 쿠팡 주력' },
-        { id: 'biz_b', name: '사업자B', owner: '강우석', regNum: '', desc: '오픈마켓 / 도매매 주력' }
+        { id: 'biz_a', name: '사업자A', owner: '리사', regNum: '', desc: '스마트스토어 / 쿠팡 주력' },
+        { id: 'biz_b', name: '사업자B', owner: '리사', regNum: '', desc: '오픈마켓 / 도매매 주력' }
       ];
     }
 
@@ -649,27 +651,29 @@ function loadStateFromStorage() {
             existingBizNames.add(b.biz);
           }
         });
-
-        renderBusinessSwitcher();
-        populateBusinessSelects();
-        populateSelectFilters();
-        renderAll();
-        return true;
       }
     }
 
     renderBusinessSwitcher();
     populateBusinessSelects();
+    populateSelectFilters();
+    renderAll();
+    return true;
   } catch (err) {
     console.warn('LocalStorage 복원 실패:', err);
+    renderBusinessSwitcher();
+    populateBusinessSelects();
+    populateSelectFilters();
+    renderAll();
   }
   return false;
 }
 
+/**
+ * 샘플 데이터 로드 (사용자가 업로드 탭에서 수동으로 누른 경우에만 실행)
+ */
 function loadSampleOrders(forceReload = false) {
-  // 사용자가 강제로 초기화 버튼을 누르지 않은 경우, 먼저 로컬스토리지에 저장된 장부가 있는지 확인!
-  if (!forceReload && loadStateFromStorage()) {
-    console.log('✅ 브라우저에 안전하게 보관된 장부 데이터를 복원했습니다.');
+  if (!forceReload) {
     return;
   }
 
@@ -681,12 +685,33 @@ function loadSampleOrders(forceReload = false) {
     .then(csvText => {
       parseCSVOrders(csvText);
       saveStateToStorage();
+      renderAll();
     })
     .catch(() => {
       parseCSVOrders(INLINE_SAMPLE_CSV);
       saveStateToStorage();
+      renderAll();
     });
 }
+
+/**
+ * 🧹 전체 장부 데이터 비우기 (새 장부 시작용)
+ */
+function clearAllLedgerData(skipConfirm = false) {
+  if (!skipConfirm && !confirm('모든 주문, 통장 거래, 지출, 자산 내역을 삭제하고 깨끗한 새 장부로 시작할까요?')) {
+    return;
+  }
+  AppState.rawOrders = [];
+  AppState.bankAccounts = [];
+  AppState.bankTransactions = [];
+  AppState.marketSettlements = {};
+  AppState.customExpenses = [];
+  AppState.customAssets = [];
+  saveStateToStorage();
+  renderAll();
+  alert('모든 가상/임시 데이터가 깨끗하게 비워졌습니다!\n이제 실제 데이터를 자유롭게 입력해 보세요, 리사님! ✨');
+}
+window.clearAllLedgerData = clearAllLedgerData;
 
 /**
  * RFC-4180 CSV 파서
@@ -2830,10 +2855,14 @@ function renderSettlementView() {
   const quickBank = document.getElementById('quickTxBankId');
   if (quickBank) {
     const curVal = quickBank.value;
-    quickBank.innerHTML = AppState.bankAccounts.map(b => `
-      <option value="${b.id}">${b.bankName || b.name} (${b.biz || '공통'})</option>
-    `).join('');
-    if (curVal) quickBank.value = curVal;
+    if (AppState.bankAccounts.length === 0) {
+      quickBank.innerHTML = '<option value="">통장을 먼저 등록해주세요</option>';
+    } else {
+      quickBank.innerHTML = AppState.bankAccounts.map(b => `
+        <option value="${b.id}">${b.bankName || b.name} (${b.biz || '공통'})</option>
+      `).join('');
+      if (curVal) quickBank.value = curVal;
+    }
   }
 
   const quickDate = document.getElementById('quickTxDate');
@@ -2846,10 +2875,14 @@ function renderSettlementView() {
   const pasteTarget = document.getElementById('bankPasteTargetAccount');
   if (pasteTarget) {
     const curVal = pasteTarget.value;
-    pasteTarget.innerHTML = AppState.bankAccounts.map(b => `
-      <option value="${b.id}">${b.bankName || b.name} - ${b.accountName || b.name} (${b.accountNum})</option>
-    `).join('');
-    if (curVal) pasteTarget.value = curVal;
+    if (AppState.bankAccounts.length === 0) {
+      pasteTarget.innerHTML = '<option value="">통장을 먼저 등록해주세요</option>';
+    } else {
+      pasteTarget.innerHTML = AppState.bankAccounts.map(b => `
+        <option value="${b.id}">${b.bankName || b.name} - ${b.accountName || b.name} (${b.accountNum})</option>
+      `).join('');
+      if (curVal) pasteTarget.value = curVal;
+    }
   }
 
   // 통장 입출금 거래내역 장부 렌더링 동기화
