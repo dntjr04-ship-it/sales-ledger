@@ -24,11 +24,11 @@ const AppState = {
   selectedCardKey: null,
   selectedCardTxTab: 'ALL', // 'ALL', 'CURRENT', 'NEXT'
 
-  // 2. 통장 데이터 (기본 모의 데이터)
+  // 2. 통장 데이터 (기본 모의 데이터 - 이월금액과 거래내역 합산으로 현재 잔고 자동 계산)
   bankAccounts: [
-    { id: 1, bankName: '기업은행', name: '기업은행 (주거래 통장)', accountName: '주거래 사업자 통장', accountNum: '010-8829-1234', balance: 14500000, biz: '사업자A', note: '스마트스토어 및 주요 오픈마켓 정산 계좌' },
-    { id: 2, bankName: '국민은행', name: '국민은행 (스마트스토어 전용)', accountName: '스마트스토어 전용', accountNum: '421002-01-9988', balance: 8200000, biz: '사업자A', note: '국민카드 결제대금 자동이체 계좌' },
-    { id: 3, bankName: '신한은행', name: '신한은행 (쿠팡/올웨이즈 전용)', accountName: '쿠팡/올웨이즈 전용', accountNum: '110-345-678901', balance: 11300000, biz: '사업자B', note: '쿠팡 정산금 입금 및 세금 적립 계좌' }
+    { id: 1, bankName: '기업은행', name: '기업은행 (주거래 통장)', accountName: '주거래 사업자 통장', accountNum: '010-8829-1234', initialBalance: 14335000, balance: 14500000, biz: '사업자A', note: '스마트스토어 및 주요 오픈마켓 정산 계좌' },
+    { id: 2, bankName: '국민은행', name: '국민은행 (스마트스토어 전용)', accountName: '스마트스토어 전용', accountNum: '421002-01-9988', initialBalance: 9450000, balance: 8200000, biz: '사업자A', note: '국민카드 결제대금 자동이체 계좌' },
+    { id: 3, bankName: '신한은행', name: '신한은행 (쿠팡/올웨이즈 전용)', accountName: '쿠팡/올웨이즈 전용', accountNum: '110-345-678901', initialBalance: 10930000, balance: 11300000, biz: '사업자B', note: '쿠팡 정산금 입금 및 세금 적립 계좌' }
   ],
 
   // 2-B. 통장 거래내역 (입출금 장부)
@@ -461,6 +461,11 @@ function loadStateFromStorage() {
 
     if (savedBanks) {
       AppState.bankAccounts = JSON.parse(savedBanks);
+      AppState.bankAccounts.forEach(b => {
+        if (b.initialBalance === undefined) {
+          b.initialBalance = b.balance || 0;
+        }
+      });
     }
     if (savedSettle) {
       AppState.marketSettlements = JSON.parse(savedSettle);
@@ -471,6 +476,7 @@ function loadStateFromStorage() {
     if (savedBankTx) {
       AppState.bankTransactions = JSON.parse(savedBankTx);
     }
+    recalculateAllBankBalances();
     if (savedExpenses) {
       AppState.customExpenses = JSON.parse(savedExpenses);
     }
@@ -2101,9 +2107,54 @@ function getMarketDepositsFromBank() {
 }
 
 /**
+ * 🏦 통장별 기초 이월금액 및 거래내역(입출금) 집계 통계
+ */
+function getBankAccountStats(bankId) {
+  const bank = AppState.bankAccounts.find(b => b.id == bankId);
+  if (!bank) return { initialBalance: 0, totalIn: 0, totalOut: 0, currentBalance: 0 };
+
+  const initial = bank.initialBalance !== undefined ? Number(bank.initialBalance) : (Number(bank.balance) || 0);
+
+  let totalIn = 0;
+  let totalOut = 0;
+
+  AppState.bankTransactions.forEach(tx => {
+    if (String(tx.accountId) === String(bankId)) {
+      const amt = Number(tx.amount) || 0;
+      if (tx.type === '입금') {
+        totalIn += amt;
+      } else if (tx.type === '출금') {
+        totalOut += amt;
+      }
+    }
+  });
+
+  const currentBalance = initial + totalIn - totalOut;
+  return {
+    initialBalance: initial,
+    totalIn,
+    totalOut,
+    currentBalance
+  };
+}
+
+/**
+ * 모든 통장의 잔고를 (이월금액 + 입금 - 출금) 공식으로 실시간 일괄 동기화
+ */
+function recalculateAllBankBalances() {
+  AppState.bankAccounts.forEach(b => {
+    const stats = getBankAccountStats(b.id);
+    b.balance = stats.currentBalance;
+  });
+}
+
+/**
  * 4. 정산 미수금 & 통장 관리 (⭐ 통장 입출금 내역과 100% 실시간 연동!)
  */
 function renderSettlementView() {
+  // 모든 통장의 잔고를 이월금액과 거래내역 합산으로 실시간 동기화
+  recalculateAllBankBalances();
+
   const countableOrders = getCountableOrders();
   const bankDeposits = getMarketDepositsFromBank();
 
@@ -2201,7 +2252,7 @@ function renderSettlementView() {
     }
   }
 
-  // 등록 통장 카드 목록 렌더링 (⭐ 리사님 피드백: 사업자 선택 탭과 무관하게 등록된 모든 통장을 항상 보여주어 통장이 사라지는 혼란 완전 방지!)
+  // 등록 통장 카드 목록 렌더링 (이월금액, 거래 입금/출금 합산 및 실시간 현재잔고 표시)
   const bankList = document.getElementById('bankAccountsList');
   if (bankList) {
     const displayBanks = AppState.bankAccounts;
@@ -2209,7 +2260,7 @@ function renderSettlementView() {
       bankList.innerHTML = '<div style="padding:24px;text-align:center;color:#94a3b8;">등록된 통장이 없습니다. [+ 통장 등록] 버튼으로 추가해보세요!</div>';
     } else {
       bankList.innerHTML = displayBanks.map(b => {
-        const isCurrentBiz = AppState.currentBizFilter === 'ALL' || b.biz === AppState.currentBizFilter || b.biz === '개인' || b.biz === '공통';
+        const stats = getBankAccountStats(b.id);
         const bizBadgeBg = b.biz === '사업자A' ? '#eef2ff' : (b.biz === '사업자B' ? '#ecfdf5' : '#fef3c7');
         const bizBadgeColor = b.biz === '사업자A' ? '#4f46e5' : (b.biz === '사업자B' ? '#059669' : '#d97706');
 
@@ -2222,12 +2273,18 @@ function renderSettlementView() {
             </div>
             <div style="font-size:12.5px;color:#475569;margin-top:3px;font-weight:600;">${b.accountName || b.name}</div>
             <div class="bank-num" style="font-size:12px;color:#64748b;margin-top:2px;font-family:monospace;">${b.accountNum}</div>
-            ${b.note ? `<div style="font-size:11px;color:#0d9488;margin-top:4px;">📝 ${b.note}</div>` : ''}
+            ${b.note ? `<div style="font-size:11px;color:#0d9488;margin-top:3px;">📝 ${b.note}</div>` : ''}
+            <div style="font-size:11px;color:#64748b;margin-top:6px;display:flex;gap:10px;flex-wrap:wrap;background:#f8fafc;padding:4px 8px;border-radius:6px;border:1px solid #f1f5f9;">
+              <span>이월(기초): <strong style="color:#1e293b;">${formatKRW(stats.initialBalance)}</strong></span>
+              <span>입금: <strong style="color:#059669;">+${formatKRW(stats.totalIn)}</strong></span>
+              <span>출금: <strong style="color:#dc2626;">-${formatKRW(stats.totalOut)}</strong></span>
+            </div>
           </div>
           <div style="text-align:right;">
-            <div class="bank-bal" style="font-size:16px;font-weight:800;color:#065f46;">${formatKRW(b.balance)}</div>
+            <div style="font-size:11px;color:#64748b;font-weight:600;">현재 통장 잔고</div>
+            <div class="bank-bal" style="font-size:17px;font-weight:800;color:#065f46;margin-top:1px;">${formatKRW(stats.currentBalance)}</div>
             <div style="margin-top:6px;display:flex;gap:4px;justify-content:flex-end;">
-              <button class="btn btn-sm btn-secondary" onclick="openBankAccountModal(${b.id})" style="font-size:11px;padding:3px 8px;">✏️ 수정</button>
+              <button class="btn btn-sm btn-secondary" onclick="openBankAccountModal(${b.id})" style="font-size:11px;padding:3px 8px;" title="이월금액 및 정보 수정">✏️ 이월금액/정보 수정</button>
               <button class="btn btn-sm btn-secondary" onclick="deleteBankAccount(${b.id})" style="font-size:11px;padding:3px 8px;color:#dc2626;">🗑️ 삭제</button>
             </div>
           </div>
@@ -2288,7 +2345,7 @@ function renderSettlementView() {
 }
 
 /**
- * 통장 등록 / 수정 모달 핸들러
+ * 통장 등록 / 수정 모달 핸들러 (이월금액 / 기초시작잔액 입력 지원 ⭐)
  */
 function openBankAccountModal(id) {
   const idEl = document.getElementById('formBankId');
@@ -2296,7 +2353,7 @@ function openBankAccountModal(id) {
   const bizEl = document.getElementById('formBankBiz');
   const accNameEl = document.getElementById('formBankAccName');
   const accNumEl = document.getElementById('formBankAccNum');
-  const balEl = document.getElementById('formBankBalance');
+  const balEl = document.getElementById('formBankInitialBalance');
   const noteEl = document.getElementById('formBankNote');
   const titleEl = document.getElementById('bankModalTitle');
 
@@ -2308,9 +2365,10 @@ function openBankAccountModal(id) {
       if (bizEl) bizEl.value = b.biz || '사업자A';
       if (accNameEl) accNameEl.value = b.accountName || b.name || '';
       if (accNumEl) accNumEl.value = b.accountNum || '';
-      if (balEl) balEl.value = b.balance || 0;
+      const initial = (b.initialBalance !== undefined) ? b.initialBalance : (b.balance || 0);
+      if (balEl) balEl.value = initial;
       if (noteEl) noteEl.value = b.note || '';
-      if (titleEl) titleEl.textContent = `✏️ [${b.bankName || b.name}] 계좌 정보 수정`;
+      if (titleEl) titleEl.textContent = `✏️ [${b.bankName || b.name}] 계좌 및 이월금액 수정`;
     }
   } else {
     if (idEl) idEl.value = '';
@@ -2320,12 +2378,55 @@ function openBankAccountModal(id) {
     if (accNumEl) accNumEl.value = '';
     if (balEl) balEl.value = '';
     if (noteEl) noteEl.value = '';
-    if (titleEl) titleEl.textContent = '🏦 통장 기본정보 등록';
+    if (titleEl) titleEl.textContent = '🏦 통장 기본정보 및 이월금액 등록';
   }
+
+  previewBankBalanceCalc();
 
   const overlay = document.getElementById('bankAccountModalOverlay');
   if (overlay) overlay.style.display = 'flex';
   if (window.feather) feather.replace();
+}
+
+/**
+ * 모달 내 이월금액 입력 시 실시간 계산 잔액 미리보기
+ */
+function previewBankBalanceCalc() {
+  const idEl = document.getElementById('formBankId');
+  const balEl = document.getElementById('formBankInitialBalance');
+  const previewEl = document.getElementById('bankModalCalcPreview');
+  if (!balEl || !previewEl) return;
+
+  const initBal = parseFloat(balEl.value) || 0;
+  const id = idEl ? idEl.value : null;
+
+  if (id) {
+    const stats = getBankAccountStats(id);
+    const curr = initBal + stats.totalIn - stats.totalOut;
+    previewEl.style.display = 'block';
+    previewEl.innerHTML = `
+      <div><strong>📊 잔고 실시간 계산 미리보기</strong></div>
+      <div style="margin-top:3px;color:#475569;">
+        이월(기초)금액: <strong>${formatKRW(initBal)}</strong> 
+        + 거래 입금합계: <span style="color:#059669;font-weight:700;">+${formatKRW(stats.totalIn)}</span> 
+        - 거래 출금합계: <span style="color:#dc2626;font-weight:700;">-${formatKRW(stats.totalOut)}</span>
+      </div>
+      <div style="margin-top:4px;font-size:13px;font-weight:800;color:#065f46;">
+        ➔ 최종 현재 통장 잔고: ${formatKRW(curr)}
+      </div>
+    `;
+  } else {
+    previewEl.style.display = 'block';
+    previewEl.innerHTML = `
+      <div><strong>📊 시작 잔고 안내</strong></div>
+      <div style="margin-top:3px;color:#475569;">
+        처음 시작 시 이월금액이 기준 잔액이 되며, 이후 입금·출금 내역에 따라 자동으로 더해지고 빼집니다.
+      </div>
+      <div style="margin-top:4px;font-size:13px;font-weight:800;color:#065f46;">
+        ➔ 최초 등록 기준금액: ${formatKRW(initBal)}
+      </div>
+    `;
+  }
 }
 
 function closeBankAccountModal() {
@@ -2339,7 +2440,7 @@ function saveBankAccount() {
   const biz = document.getElementById('formBankBiz').value;
   const accountName = document.getElementById('formBankAccName').value.trim();
   const accountNum = document.getElementById('formBankAccNum').value.trim();
-  const balance = parseFloat(document.getElementById('formBankBalance').value) || 0;
+  const initialBalance = parseFloat(document.getElementById('formBankInitialBalance').value) || 0;
   const note = document.getElementById('formBankNote').value.trim();
 
   if (!accountName || !accountNum) {
@@ -2358,7 +2459,7 @@ function saveBankAccount() {
         name: displayName,
         accountName,
         accountNum,
-        balance,
+        initialBalance,
         biz,
         note
       };
@@ -2370,18 +2471,20 @@ function saveBankAccount() {
       name: displayName,
       accountName,
       accountNum,
-      balance,
+      initialBalance,
+      balance: initialBalance,
       biz,
       note
     };
     AppState.bankAccounts.push(newBank);
   }
 
+  recalculateAllBankBalances();
   saveStateToStorage();
   closeBankAccountModal();
   renderSettlementView();
   calculatePL();
-  alert('통장 기본정보가 안전하게 저장되었습니다!');
+  alert(`통장 정보(이월금액 ${formatKRW(initialBalance)})가 안전하게 저장되었습니다, 리사님!`);
 }
 
 function deleteBankAccount(id) {
@@ -2446,7 +2549,32 @@ function renderBankTxTable() {
 
   const markets = getKnownMarketsList();
 
+  // 🏦 계좌별 거래일시 오름차순(오래된 순)으로 거래 후 잔액(Running Balance) 완벽 계산
+  const bankRunningMap = {};
+  AppState.bankAccounts.forEach(b => {
+    bankRunningMap[b.id] = (b.initialBalance !== undefined) ? Number(b.initialBalance) : (Number(b.balance) || 0);
+  });
+
+  const chronological = [...AppState.bankTransactions].sort((a, b) => (a.date || '').localeCompare(b.date || '') || (a.id - b.id));
+  const txRunningBalances = {};
+
+  chronological.forEach(tx => {
+    const accId = tx.accountId;
+    if (bankRunningMap[accId] === undefined) {
+      bankRunningMap[accId] = 0;
+    }
+    const amt = Number(tx.amount) || 0;
+    if (tx.type === '입금') {
+      bankRunningMap[accId] += amt;
+    } else if (tx.type === '출금') {
+      bankRunningMap[accId] -= amt;
+    }
+    txRunningBalances[tx.id] = bankRunningMap[accId];
+  });
+
   tbody.innerHTML = list.map(tx => {
+    const runningBal = txRunningBalances[tx.id] !== undefined ? txRunningBalances[tx.id] : tx.balanceAfter;
+
     // 인라인 수정 모드
     if (editingBankTxId === tx.id) {
       return `
@@ -2468,7 +2596,7 @@ function renderBankTxTable() {
             <input type="number" id="inlineTxAmount_${tx.id}" class="form-control text-right" style="font-size:12px;padding:2px 4px;height:28px;font-weight:700;" value="${tx.amount || 0}">
           </td>
           <td style="text-align:right;color:#64748b;font-size:11px;vertical-align:middle;">
-            ${tx.balanceAfter ? formatKRW(tx.balanceAfter) : '-'}
+            ${formatKRW(runningBal)}
           </td>
           <td style="padding:4px 4px;">
             <select id="inlineTxMarket_${tx.id}" class="form-control" style="font-size:11px;padding:2px 3px;height:28px;">
@@ -2517,7 +2645,7 @@ function renderBankTxTable() {
           </strong>
         </td>
         <td style="text-align:right;color:#1e40af;font-weight:700;">
-          ${tx.balanceAfter ? formatKRW(tx.balanceAfter) : '-'}
+          ${formatKRW(runningBal)}
         </td>
         <td style="text-align:center;">
           ${hasMarket ? `
@@ -2597,13 +2725,6 @@ function addQuickBankTx() {
     return;
   }
 
-  // 잔액 반영
-  if (type === '입금') {
-    targetBank.balance += amount;
-  } else {
-    targetBank.balance -= amount;
-  }
-
   if (targetMarket === 'AUTO') {
     const detected = detectMarketFromText(summary + ' ' + note);
     if (detected && detected !== 'NONE') targetMarket = detected;
@@ -2621,13 +2742,13 @@ function addQuickBankTx() {
     date: dateStr || todayStr,
     type: type,
     amount: amount,
-    balanceAfter: targetBank.balance,
     summary: summary,
     targetMarket: targetMarket,
     note: note
   };
 
   AppState.bankTransactions.unshift(newTx);
+  recalculateAllBankBalances();
   saveStateToStorage();
 
   // 입력칸 비우고 다음 입력을 위해 포커스 준비
@@ -2721,9 +2842,6 @@ function processBankPasteData() {
       if (!date) date = new Date().toISOString().slice(0, 10);
       if (!summary) summary = '통장 거래내역';
 
-      if (type === '입금') bank.balance += amount;
-      else bank.balance -= amount;
-
       const detectedMkt = detectMarketFromText(summary + ' ' + note);
 
       AppState.bankTransactions.unshift({
@@ -2735,7 +2853,6 @@ function processBankPasteData() {
         date: date,
         type: type,
         amount: amount,
-        balanceAfter: bank.balance,
         summary: summary,
         targetMarket: detectedMkt || 'AUTO',
         note: note
@@ -2745,6 +2862,7 @@ function processBankPasteData() {
   });
 
   if (addedCount > 0) {
+    recalculateAllBankBalances();
     saveStateToStorage();
     textarea.value = '';
     togglePasteBox();
@@ -2791,29 +2909,19 @@ function saveBankTxInline(id) {
     return;
   }
 
-  // 잔액 차이 보정
-  const oldEffect = (tx.type === '입금' ? tx.amount : -tx.amount);
-  const newEffect = (type === '입금' ? amount : -amount);
-  const diff = newEffect - oldEffect;
-
-  const bank = AppState.bankAccounts.find(b => b.id == tx.accountId);
-  if (bank) {
-    bank.balance += diff;
-  }
-
   tx.date = date;
   tx.type = type;
   tx.amount = amount;
   tx.targetMarket = market;
   tx.summary = summary;
   tx.note = note;
-  if (bank) tx.balanceAfter = bank.balance;
 
   editingBankTxId = null;
+  recalculateAllBankBalances();
   saveStateToStorage();
   renderSettlementView();
   calculatePL();
-  showQuickToast('수정 내용이 저장되었습니다!');
+  showQuickToast('수정 내용이 저장되고 통장 잔고가 재계산되었습니다!');
 }
 
 function showQuickToast(msg) {
@@ -2912,13 +3020,6 @@ function saveBankTx() {
     return;
   }
 
-  // 통장 잔액 반영
-  if (type === '입금') {
-    targetBank.balance += amount;
-  } else {
-    targetBank.balance -= amount;
-  }
-
   const newTx = {
     id: Date.now(),
     accountId: targetBank.id,
@@ -2928,13 +3029,13 @@ function saveBankTx() {
     date: dateStr || new Date().toISOString().slice(0, 10),
     type: type,
     amount: amount,
-    balanceAfter: targetBank.balance,
     summary: summary,
     targetMarket: targetMarket,
     note: note
   };
 
   AppState.bankTransactions.unshift(newTx);
+  recalculateAllBankBalances();
   saveStateToStorage();
   closeBankTxModal();
   renderSettlementView();
@@ -2943,10 +3044,13 @@ function saveBankTx() {
 }
 
 function deleteBankTx(id) {
-  if (!confirm('이 거래내역을 장부에서 삭제하시겠습니까? (통장 잔액은 변경되지 않습니다)')) return;
+  if (!confirm('이 거래내역을 장부에서 삭제하시겠습니까? (삭제 시 통장 잔고가 자동으로 다시 계산됩니다)')) return;
   AppState.bankTransactions = AppState.bankTransactions.filter(tx => tx.id != id);
+  recalculateAllBankBalances();
   saveStateToStorage();
-  renderBankTxTable();
+  renderSettlementView();
+  calculatePL();
+  showQuickToast('거래내역이 삭제되고 통장 잔고가 재계산되었습니다.');
 }
 
 /**
@@ -4282,6 +4386,9 @@ window.processBankPasteData = processBankPasteData;
 window.editBankTxInline = editBankTxInline;
 window.cancelEditBankTxInline = cancelEditBankTxInline;
 window.saveBankTxInline = saveBankTxInline;
+window.previewBankBalanceCalc = previewBankBalanceCalc;
+window.recalculateAllBankBalances = recalculateAllBankBalances;
+window.getBankAccountStats = getBankAccountStats;
 
 // 4. 판관비 & 순자산
 window.openCustomExpenseModal = openCustomExpenseModal;
