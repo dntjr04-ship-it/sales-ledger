@@ -630,13 +630,6 @@ function loadStateFromStorage() {
   }
   return false;
 }
-      }
-    }
-  } catch (err) {
-    console.warn('LocalStorage 복원 실패:', err);
-  }
-  return false;
-}
 
 function loadSampleOrders(forceReload = false) {
   // 사용자가 강제로 초기화 버튼을 누르지 않은 경우, 먼저 로컬스토리지에 저장된 장부가 있는지 확인!
