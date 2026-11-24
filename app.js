@@ -807,8 +807,13 @@ function parseCSVOrders(csvText) {
  */
 function ensureAloeStockExists() {
   if (!AppState.rawOrders || !Array.isArray(AppState.rawOrders)) return;
-  const hasAloe = AppState.rawOrders.some(o => (o.productName || '').includes('알로에'));
-  if (!hasAloe) {
+  const aloeOrders = AppState.rawOrders.filter(o => (o.productName || '').includes('알로에'));
+  const hasInbound = aloeOrders.some(o => o.sourcingType === '사입' && (!o.market || o.salePrice === 0));
+  const hasOutbound = aloeOrders.some(o => o.sourcingType === '사입' && o.salePrice > 0);
+
+  let updated = false;
+
+  if (!hasInbound) {
     // 1) 알로에 사입 단독 매입 (입고 30개)
     AppState.rawOrders.unshift({
       orderNo: 'BUY-20261012-02',
@@ -844,7 +849,10 @@ function ensureAloeStockExists() {
       trackingNo: '6543219870',
       inventoryUnitCost: 6500
     });
+    updated = true;
+  }
 
+  if (!hasOutbound) {
     // 2) 알로에 실제 판매(출고 2개)
     AppState.rawOrders.unshift({
       orderNo: 'ORD-20261016-01',
@@ -880,6 +888,10 @@ function ensureAloeStockExists() {
       trackingNo: '6098231456',
       inventoryUnitCost: 6500
     });
+    updated = true;
+  }
+
+  if (updated) {
     saveStateToStorage();
   }
 }
@@ -2812,7 +2824,9 @@ function renderInventoryView() {
   const tbody = document.getElementById('inventoryTableBody');
   if (!tbody) return;
 
-  const orders = getBizOrders();
+  // ⭐ 리사님 편의: 사입재고(창고 실물 재고)는 사업자 선택 탭과 무관하게 항상 전체 사입 품목을 든든하게 확인할 수 있도록 처리!
+  ensureAloeStockExists();
+  const orders = AppState.rawOrders;
   const buyMap = {};
 
   orders.forEach(o => {
