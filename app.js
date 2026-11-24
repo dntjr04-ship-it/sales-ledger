@@ -482,6 +482,7 @@ function loadStateFromStorage() {
       const parsed = JSON.parse(savedOrders);
       if (Array.isArray(parsed) && parsed.length > 0) {
         AppState.rawOrders = parsed;
+        ensureAloeStockExists();
         populateSelectFilters();
         renderAll();
         return true;
@@ -687,8 +688,7 @@ function parseCSVOrders(csvText) {
     });
   }
 
-  // ⭐ 리사님을 위한 사입 단독 매입 예시:
-  // 사입은 판매처 공란, 소싱처는 수기 등록('도매꾹'), 주문구분은 '대기', 매입유형은 '사입'
+  // ⭐ 리사님을 위한 사입 단독 매입 예시 1 (비쵸비)
   orders.unshift({
     orderNo: 'BUY-20261015-01',
     market: '', // 사입은 판매처 공란!
@@ -724,10 +724,164 @@ function parseCSVOrders(csvText) {
     inventoryUnitCost: 13500
   });
 
+  // ⭐ 리사님을 위한 사입 단독 매입 예시 2 (알로에 입고)
+  orders.unshift({
+    orderNo: 'BUY-20261012-02',
+    market: '', // 사입은 판매처 공란!
+    biz: '사업자A',
+    orderDate: '2026-10-12 오전 11:30:00',
+    orderSeq: '',
+    productName: '김정문알로에 큐어 하이드라 수딩 토너 130ml',
+    option: '130ml 1개',
+    qty: 30, // 사입 입고 30개
+    salePrice: 0,
+    shipping: 0,
+    totalSales: 0,
+    recipient: '-',
+    standardPrice: 0,
+    actualSettlement: 0,
+    orderStage: '대기',
+    sourcingType: '사입',
+    sourcingPlatform: '도매꾹',
+    supplierName: '그린케어유통',
+    supplierBiz: '그린케어유통',
+    paymentCard: '국민카드',
+    cardHolder: '리사',
+    sourcingId: '',
+    sourcingStandardPrice: 6500,
+    purchaseCost: 195000,
+    point: 0,
+    purchasePrice: 195000,
+    purchaseStage: '완료',
+    paymentDate: '2026-10-12',
+    sourcingOrderNo: 'DO-772183',
+    courier: 'CJ대한통운',
+    trackingNo: '6543219870',
+    inventoryUnitCost: 6500
+  });
+
+  // ⭐ 알로에 사입 출고(판매) 예시 (2개 판매)
+  orders.unshift({
+    orderNo: 'ORD-20261016-01',
+    market: '스마트스토어',
+    biz: '사업자A',
+    orderDate: '2026-10-16 오후 2:15:00',
+    orderSeq: '1',
+    productName: '김정문알로에 큐어 하이드라 수딩 토너 130ml',
+    option: '130ml 1개',
+    qty: 2, // 판매 출고 2개
+    salePrice: 12500,
+    shipping: 3000,
+    totalSales: 28000,
+    recipient: '김민지',
+    standardPrice: 26000,
+    actualSettlement: 26000,
+    orderStage: '완료',
+    sourcingType: '사입',
+    sourcingPlatform: '자체창고',
+    supplierName: '자체재고출고',
+    supplierBiz: '자체재고',
+    paymentCard: '-',
+    cardHolder: '-',
+    sourcingId: '',
+    sourcingStandardPrice: 6500,
+    purchaseCost: 13000,
+    point: 0,
+    purchasePrice: 13000,
+    purchaseStage: '완료',
+    paymentDate: '2026-10-16',
+    sourcingOrderNo: 'SELF-OUT-01',
+    courier: '우체국택배',
+    trackingNo: '6098231456',
+    inventoryUnitCost: 6500
+  });
+
   AppState.rawOrders = orders;
   saveStateToStorage();
   populateSelectFilters();
   renderAll();
+}
+
+/**
+ * 브라우저 로컬스토리지 복원 시 알로에 사입 품목이 누락되어 있다면 자동 복구
+ */
+function ensureAloeStockExists() {
+  if (!AppState.rawOrders || !Array.isArray(AppState.rawOrders)) return;
+  const hasAloe = AppState.rawOrders.some(o => (o.productName || '').includes('알로에'));
+  if (!hasAloe) {
+    // 1) 알로에 사입 단독 매입 (입고 30개)
+    AppState.rawOrders.unshift({
+      orderNo: 'BUY-20261012-02',
+      market: '',
+      biz: '사업자A',
+      orderDate: '2026-10-12 오전 11:30:00',
+      orderSeq: '',
+      productName: '김정문알로에 큐어 하이드라 수딩 토너 130ml',
+      option: '130ml 1개',
+      qty: 30,
+      salePrice: 0,
+      shipping: 0,
+      totalSales: 0,
+      recipient: '-',
+      standardPrice: 0,
+      actualSettlement: 0,
+      orderStage: '대기',
+      sourcingType: '사입',
+      sourcingPlatform: '도매꾹',
+      supplierName: '그린케어유통',
+      supplierBiz: '그린케어유통',
+      paymentCard: '국민카드',
+      cardHolder: '리사',
+      sourcingId: '',
+      sourcingStandardPrice: 6500,
+      purchaseCost: 195000,
+      point: 0,
+      purchasePrice: 195000,
+      purchaseStage: '완료',
+      paymentDate: '2026-10-12',
+      sourcingOrderNo: 'DO-772183',
+      courier: 'CJ대한통운',
+      trackingNo: '6543219870',
+      inventoryUnitCost: 6500
+    });
+
+    // 2) 알로에 실제 판매(출고 2개)
+    AppState.rawOrders.unshift({
+      orderNo: 'ORD-20261016-01',
+      market: '스마트스토어',
+      biz: '사업자A',
+      orderDate: '2026-10-16 오후 2:15:00',
+      orderSeq: '1',
+      productName: '김정문알로에 큐어 하이드라 수딩 토너 130ml',
+      option: '130ml 1개',
+      qty: 2,
+      salePrice: 12500,
+      shipping: 3000,
+      totalSales: 28000,
+      recipient: '김민지',
+      standardPrice: 26000,
+      actualSettlement: 26000,
+      orderStage: '완료',
+      sourcingType: '사입',
+      sourcingPlatform: '자체창고',
+      supplierName: '자체재고출고',
+      supplierBiz: '자체재고',
+      paymentCard: '-',
+      cardHolder: '-',
+      sourcingId: '',
+      sourcingStandardPrice: 6500,
+      purchaseCost: 13000,
+      point: 0,
+      purchasePrice: 13000,
+      purchaseStage: '완료',
+      paymentDate: '2026-10-16',
+      sourcingOrderNo: 'SELF-OUT-01',
+      courier: '우체국택배',
+      trackingNo: '6098231456',
+      inventoryUnitCost: 6500
+    });
+    saveStateToStorage();
+  }
 }
 
 /**
