@@ -513,15 +513,55 @@ function initFileUpload() {
   }
 }
 
+/**
+ * 📥 파일 업로드 처리 (엑셀 .xlsx, .xls 및 .csv 자동 판별 및 인코딩 지원)
+ */
 function handleFile(file) {
+  if (!file) return;
+  const fileName = file.name || '';
+  const isExcel = /\.(xlsx|xls)$/i.test(fileName);
+
   const reader = new FileReader();
-  reader.onload = function(e) {
-    const text = e.target.result;
-    parseCSVOrders(text);
-    alert(`파일 [${file.name}] 업로드가 완료되었습니다! 총 ${AppState.rawOrders.length}건이 등록되었습니다.`);
-    switchNav('ordersView');
-  };
-  reader.readAsText(file, 'UTF-8');
+
+  if (isExcel) {
+    // 1. 엑셀 파일 (.xlsx, .xls) 파싱: SheetJS 사용
+    reader.onload = function(e) {
+      try {
+        if (!window.XLSX) {
+          throw new Error('엑셀 파싱 라이브러리(SheetJS)가 로드되지 않았습니다.');
+        }
+        const data = new Uint8Array(e.target.result);
+        const workbook = window.XLSX.read(data, { type: 'array' });
+        const firstSheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[firstSheetName];
+        const rows = window.XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
+        processOrderRows(rows, fileName);
+      } catch (err) {
+        console.error('엑셀 파싱 에러:', err);
+        alert(`엑셀 파일 [${fileName}] 파싱 중 오류가 발생했습니다: ${err.message}`);
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  } else {
+    // 2. CSV 파일: EUC-KR / UTF-8 자동 판별
+    reader.onload = function(e) {
+      try {
+        const buffer = e.target.result;
+        let text = new TextDecoder('utf-8', { fatal: false }).decode(buffer);
+        // 만약 UTF-8 디코딩 시 대체문자(U+FFFD)가 3개 이상 나타나면 EUC-KR로 재디코딩
+        const fffdCount = (text.match(/\uFFFD/g) || []).length;
+        if (fffdCount > 3) {
+          text = new TextDecoder('euc-kr', { fatal: false }).decode(buffer);
+        }
+        const rows = parseCSV(text);
+        processOrderRows(rows, fileName);
+      } catch (err) {
+        console.error('CSV 파싱 에러:', err);
+        alert(`CSV 파일 [${fileName}] 파싱 중 오류가 발생했습니다: ${err.message}`);
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  }
 }
 
 /**
@@ -754,100 +794,184 @@ function parseCSV(text) {
 }
 
 /**
- * CSV 주문 데이터 파싱 및 정규화
+ * 📑 엑셀/CSV 행 데이터 유연한 지능형 매칭 및 정규화
  */
-function parseCSVOrders(csvText) {
-  const rows = parseCSV(csvText);
-  if (rows.length < 2) return;
+function processOrderRows(rows, fileName = '주문파일') {
+  if (!rows || rows.length < 2) {
+    alert(`파일 [${fileName}]에 유효한 데이터 행이 없습니다.`);
+    return;
+  }
 
-  const headers = rows[0].map(h => h.trim());
-  const headerMap = {};
-  headers.forEach((h, idx) => { headerMap[h] = idx; });
+  // 1. 헤더 행 자동 감지 (상단 타이틀/빈 행 건너뛰기)
+  const keyKeywords = ['상품명', '주문번호', '주문고유번호', '판매가', '결제금액', '판매사이트', '판매처', '마켓', '수량', '구매자', '수령자'];
+  let headerRowIdx = 0;
+  for (let i = 0; i < Math.min(rows.length, 10); i++) {
+    const rowStr = (rows[i] || []).map(cell => String(cell || '').trim()).join(' ');
+    const matchCount = keyKeywords.filter(k => rowStr.includes(k)).length;
+    if (matchCount >= 2) {
+      headerRowIdx = i;
+      break;
+    }
+  }
+
+  const rawHeaders = (rows[headerRowIdx] || []).map(h => String(h || '').trim());
+
+  // 2. 컬럼 동의어 사전 (스마트스토어, 쿠팡, 오픈마켓, 사방넷, 플레이오토, 이지어드민 등 완벽 지원)
+  const COL_CANDIDATES = {
+    orderNo: ['주문고유번호', '주문번호', '주문No', '주문NO', '주문코드', '주문순번', '주문ID', 'Order ID', 'OrderNo'],
+    orderSeq: ['판매사이트 주문번호', '판매사이트주문번호', '쇼핑몰주문번호', '스토어주문번호', '원주문번호', '마켓주문번호'],
+    market: ['판매사이트명', '판매사이트', '판매처명', '판매처', '쇼핑몰', '쇼핑몰명', '마켓', '마켓명', '채널', '채널명', '몰명', '주문처', '사이트명', '사이트'],
+    biz: ['판매자ID', '사업자명', '사업자', '판매자명', '스토어명', '스토어', '계정', '아이디'],
+    orderDate: ['주문일', '주문일시', '주문일자', '결제일', '결제일시', '결제일자', '수집일', '수집일시', '주문시간', '날짜', '일자'],
+    productName: ['상품명', '주문상품명', '판매상품명', '상품', '품명', '노출상품명', '등록상품명'],
+    option: ['주문선택사항', '선택사항', '옵션', '옵션명', '옵션정보', '단품명', '규격'],
+    qty: ['주문수량', '수량', '구매수량', '개수', '수량(개)'],
+    salePrice: ['판매가', '결제금액', '판매금액', '실결제금액', '주문금액', '상품금액', '단가', '판매단가'],
+    shipping: ['배송비금액', '배송비', '배송비(원)', '운임', '고객부담배송비', '배송료'],
+    recipient: ['수령자명', '수령인', '수취인명', '수취인', '받는분', '받는사람', '구매자명', '주문자명', '구매자', '주문자', '고객명'],
+    trackingNo: ['송장번호', '운송장번호', '운송장', '주문송장번호'],
+    courier: ['택배사', '배송사', '택배사명'],
+    standardPrice: ['결제기준가', '정산예정액', '정산예정금액', '정산금액', '정산금', '공급가액'],
+    sourcingPlatform: ['결제플랫폼', '소싱처', '소싱사이트', '소싱플랫폼', '매입처', '매입사이트', '발주처', '발주플랫폼', '공급처', '도매처'],
+    sourcingOrderNo: ['소싱주문번호', '소싱처주문번호', '매입주문번호', '발주번호', '소싱처 주문번호'],
+    paymentCard: ['결제카드', '카드명', '결제수단', '카드', '신용카드', '결제방식'],
+    cardHolder: ['카드명의', '명의자', '카드명의자', '결제자'],
+    sourcingId: ['결제ID', '소싱ID', '발주ID'],
+    purchaseCost: ['결제가', '실매입가', '매입금액', '매입가', '발주금액', '원가', '상품원가', '사입금액', '구매금액', '결제금액(매입)'],
+    point: ['포인트', '사용포인트', '적립금', '할인금액'],
+    paymentDate: ['결제일자', '발주일자', '매입일자', '소싱결제일'],
+    supplierName: ['공급사명', '공급사', '제조사', '도매업체', '매입처명'],
+    supplierBiz: ['사업자명', '공급자사업자'],
+    orderStage: ['주문구분', '주문상태', '처리상태', '진행상태', '등록상품'],
+    purchaseStage: ['발주상태', '매입상태'],
+    sourcingType: ['매입유형', '소싱유형', '사입/위탁', '구분']
+  };
+
+  // 인덱스 매핑 헬퍼
+  function findColIndex(candidates) {
+    // 1차: 정확 일치 (공백, 특수문자 제거)
+    for (const c of candidates) {
+      const cleanC = c.replace(/[\s\-_()\[\]]/g, '').toLowerCase();
+      const idx = rawHeaders.findIndex(h => h.replace(/[\s\-_()\[\]]/g, '').toLowerCase() === cleanC);
+      if (idx !== -1) return idx;
+    }
+    // 2차: 부분 일치
+    for (const c of candidates) {
+      const cleanC = c.replace(/[\s\-_()\[\]]/g, '').toLowerCase();
+      const idx = rawHeaders.findIndex(h => {
+        const cleanH = h.replace(/[\s\-_()\[\]]/g, '').toLowerCase();
+        return cleanH.includes(cleanC) || cleanC.includes(cleanH);
+      });
+      if (idx !== -1) return idx;
+    }
+    return -1;
+  }
+
+  const colIdx = {};
+  Object.keys(COL_CANDIDATES).forEach(key => {
+    colIdx[key] = findColIndex(COL_CANDIDATES[key]);
+  });
 
   const orders = [];
+  const defaultBiz = (AppState.currentBizFilter !== 'ALL') ? AppState.currentBizFilter : (AppState.businesses[0]?.name || '사업자A');
+  const existingBizNames = new Set((AppState.businesses || []).map(b => b.name));
 
-  for (let i = 1; i < rows.length; i++) {
+  for (let i = headerRowIdx + 1; i < rows.length; i++) {
     const r = rows[i];
-    if (r.length < headers.length * 0.4) continue;
+    if (!r || r.length === 0) continue;
 
-    const get = (colName) => {
-      const idx = headerMap[colName];
-      return idx !== undefined && r[idx] !== undefined ? r[idx].trim() : '';
+    const get = (key) => {
+      const idx = colIdx[key];
+      if (idx === -1 || idx === undefined || r[idx] === undefined || r[idx] === null) return '';
+      return String(r[idx]).trim();
     };
 
-    const getNum = (colName) => {
-      const str = get(colName).replace(/[^0-9.-]+/g, "");
+    const getNum = (key) => {
+      const str = get(key).replace(/[^0-9.-]+/g, "");
       const val = parseFloat(str);
       return isNaN(val) ? 0 : val;
     };
 
-    const orderNo = get('주문고유번호') || `ORD-${Date.now()}-${i}`;
-    const market = get('판매사이트명') || '스마트스토어';
-    const biz = get('판매자ID') || '사업자A';
-    const orderDate = get('주문일') || get('결제일') || get('수집일') || '2026-10-18';
-    const orderSeq = get('판매사이트 주문번호');
-    const productName = get('상품명') || '상품';
-    const option = get('주문선택사항');
-    const qty = getNum('주문수량') || 1;
-    const salePrice = getNum('판매가');
-    const shipping = getNum('배송비금액');
-    const recipient = get('수령자명') || '고객';
+    const productName = get('productName');
+    // 상품명이나 주문번호가 없으면 빈 행 건너뛰기
+    if (!productName && !get('orderNo')) continue;
 
-    // 매출액 = 판매가 * 수량 + 배송비금액
+    const orderNo = get('orderNo') || `ORD-${Date.now()}-${i}`;
+    let market = get('market') || '스마트스토어';
+    let biz = get('biz') || defaultBiz;
+
+    // 만약 파일에 새로운 사업자명이 들어있다면 사업자 목록에 자동 추가
+    if (biz && biz !== 'ALL' && !existingBizNames.has(biz)) {
+      AppState.businesses.push({
+        id: 'biz_' + Date.now() + Math.random().toString(36).substr(2, 4),
+        name: biz,
+        owner: '리사',
+        regNum: '',
+        desc: '파일 업로드로 자동 등록됨'
+      });
+      existingBizNames.add(biz);
+    }
+
+    const orderDate = get('orderDate') || formatDateForInput(new Date());
+    const orderSeq = get('orderSeq');
+    const option = get('option');
+    const qty = getNum('qty') || 1;
+    const salePrice = getNum('salePrice');
+    const shipping = getNum('shipping');
+
     const totalSales = (salePrice * qty) + shipping;
-
-    // 정산예정가 (구 결제기준가)
-    let standardPrice = getNum('결제기준가');
-    if (standardPrice <= 0) {
+    let standardPrice = getNum('standardPrice');
+    if (standardPrice <= 0 && totalSales > 0) {
       standardPrice = Math.round(totalSales * 0.92);
     }
     const actualSettlement = standardPrice;
 
-    // 소싱 및 매입 정보
-    const sourcingPlatform = get('결제플랫폼') || '기타';
-    const cardHolder = get('카드명의') || (get('결제ID') ? '명의미지정' : '');
-    const paymentCard = get('결제카드') || (get('결제플랫폼') ? '일반결제' : '');
-    const sourcingId = get('결제ID');
+    const sourcingPlatform = get('sourcingPlatform') || '';
+    const sourcingOrderNo = get('sourcingOrderNo');
+    const paymentCard = get('paymentCard') || '';
+    const cardHolder = get('cardHolder') || '';
+    const sourcingId = get('sourcingId') || '';
+    const purchaseCost = getNum('purchaseCost');
+    const sourcingStandardPrice = getNum('standardPrice') || purchaseCost;
+    const point = getNum('point');
+    const purchasePrice = Math.max(0, purchaseCost - point);
+    const paymentDate = get('paymentDate') || (purchaseCost > 0 ? orderDate : '');
+    const courier = get('courier');
+    const trackingNo = get('trackingNo');
+    const supplierName = get('supplierName');
+    const supplierBiz = get('supplierBiz');
+    const recipient = get('recipient') || '-';
 
-    const sourcingStandardPrice = getNum('결제기준가');
-    const purchaseCost = getNum('결제가');
-    const point = getNum('포인트');
-
-    // 매입가
-    let purchasePrice = 0;
-    if (sourcingStandardPrice > 0) {
-      purchasePrice = Math.max(0, sourcingStandardPrice - point);
-    } else if (purchaseCost > 0) {
-      purchasePrice = Math.max(0, purchaseCost - point);
-    }
-
-    const paymentDate = get('결제일자');
-    const sourcingOrderNo = get('주문번호');
-    const courier = get('택배사');
-    const trackingNo = get('주문송장번호');
-    const supplierName = get('판매처명') || get('사업자명');
-    const supplierBiz = get('사업자명');
-
-    // ⭐ 주문구분 (대기 / 완료 / 취소 / 반품 / 교환) - '사입입고' 제거!
-    const regStatus = get('등록상품');
-    let orderStage = '대기';
-    if (regStatus === '등록' || purchaseCost > 0) {
-      orderStage = '완료';
-    }
-
-    // 발주상태 (완료/반품/취소)
-    let purchaseStage = '완료';
-    if (!purchaseCost && !sourcingPlatform) {
-      purchaseStage = '취소';
-    }
-
-    // ⭐ 사입은 매입유형으로만 관리!
+    // 매입유형: 파일에 명시되어 있으면 따르고, 없으면 기본 '위탁'
+    const rawType = get('sourcingType');
     let sourcingType = '위탁';
-    if (productName.includes('비쵸비') || productName.includes('맥심')) {
+    if (rawType.includes('사입') || (!market && salePrice === 0)) {
       sourcingType = '사입';
     }
 
-    const inventoryUnitCost = purchaseCost > 0 ? (purchaseCost + point) : purchasePrice;
+    // 주문구분 & 발주상태 (매출이 제대로 집계되도록 지능형 상태 판별 ⭐)
+    const rawStage = (get('orderStage') + ' ' + get('purchaseStage')).trim();
+    let orderStage = '완료';
+    let purchaseStage = '완료';
+
+    if (rawStage.includes('취소') || rawStage.includes('환불')) {
+      orderStage = '취소';
+      purchaseStage = '취소';
+    } else if (rawStage.includes('반품')) {
+      orderStage = '반품';
+      purchaseStage = '반품';
+    } else if (rawStage.includes('교환')) {
+      orderStage = '교환';
+      purchaseStage = '완료';
+    } else if (rawStage.includes('대기') || rawStage.includes('접수') || rawStage.includes('결제대기')) {
+      orderStage = '대기';
+      purchaseStage = (purchaseCost > 0) ? '완료' : '대기';
+    } else {
+      orderStage = '완료';
+      purchaseStage = '완료';
+    }
+
+    const inventoryUnitCost = purchaseCost > 0 ? purchaseCost : purchasePrice;
 
     orders.push({
       orderNo,
@@ -865,7 +989,7 @@ function parseCSVOrders(csvText) {
       standardPrice,
       actualSettlement,
       orderStage,
-      sourcingType, // '위탁' vs '사입'
+      sourcingType,
       sourcingPlatform,
       supplierName,
       supplierBiz,
@@ -885,118 +1009,26 @@ function parseCSVOrders(csvText) {
     });
   }
 
-  // ⭐ 리사님을 위한 사입 단독 매입 예시 1 (비쵸비)
-  orders.unshift({
-    orderNo: 'BUY-20261015-01',
-    market: '', // 사입은 판매처 공란!
-    biz: '사업자A',
-    orderDate: '2026-10-15 오전 10:00:00',
-    orderSeq: '',
-    productName: '오리온 비쵸비 초코맛+딸기맛 세트',
-    option: '125g 1세트',
-    qty: 20, // 사입 입고 20개
-    salePrice: 0,
-    shipping: 0,
-    totalSales: 0,
-    recipient: '-',
-    standardPrice: 0,
-    actualSettlement: 0,
-    orderStage: '대기', // 주문구분은 일반 대기 상태 (사입입고 삭제)
-    sourcingType: '사입', // 사입은 오직 매입유형으로만 관리!
-    sourcingPlatform: '도매꾹', // 소싱처 수기 등록
-    supplierName: '스타유통(주)',
-    supplierBiz: '스타유통',
-    paymentCard: '국민카드',
-    cardHolder: '리사',
-    sourcingId: '',
-    sourcingStandardPrice: 13500,
-    purchaseCost: 270000,
-    point: 0,
-    purchasePrice: 270000,
-    purchaseStage: '완료',
-    paymentDate: '2026-10-15',
-    sourcingOrderNo: 'DO-889912',
-    courier: '화물택배',
-    trackingNo: '8829123847',
-    inventoryUnitCost: 13500
-  });
-
-  // ⭐ 리사님을 위한 사입 단독 매입 예시 2 (알로에 입고)
-  orders.unshift({
-    orderNo: 'BUY-20261012-02',
-    market: '', // 사입은 판매처 공란!
-    biz: '사업자A',
-    orderDate: '2026-10-12 오전 11:30:00',
-    orderSeq: '',
-    productName: '김정문알로에 큐어 하이드라 수딩 토너 130ml',
-    option: '130ml 1개',
-    qty: 30, // 사입 입고 30개
-    salePrice: 0,
-    shipping: 0,
-    totalSales: 0,
-    recipient: '-',
-    standardPrice: 0,
-    actualSettlement: 0,
-    orderStage: '대기',
-    sourcingType: '사입',
-    sourcingPlatform: '도매꾹',
-    supplierName: '그린케어유통',
-    supplierBiz: '그린케어유통',
-    paymentCard: '국민카드',
-    cardHolder: '리사',
-    sourcingId: '',
-    sourcingStandardPrice: 6500,
-    purchaseCost: 195000,
-    point: 0,
-    purchasePrice: 195000,
-    purchaseStage: '완료',
-    paymentDate: '2026-10-12',
-    sourcingOrderNo: 'DO-772183',
-    courier: 'CJ대한통운',
-    trackingNo: '6543219870',
-    inventoryUnitCost: 6500
-  });
-
-  // ⭐ 알로에 사입 출고(판매) 예시 (2개 판매)
-  orders.unshift({
-    orderNo: 'ORD-20261016-01',
-    market: '스마트스토어',
-    biz: '사업자A',
-    orderDate: '2026-10-16 오후 2:15:00',
-    orderSeq: '1',
-    productName: '김정문알로에 큐어 하이드라 수딩 토너 130ml',
-    option: '130ml 1개',
-    qty: 2, // 판매 출고 2개
-    salePrice: 12500,
-    shipping: 3000,
-    totalSales: 28000,
-    recipient: '김민지',
-    standardPrice: 26000,
-    actualSettlement: 26000,
-    orderStage: '완료',
-    sourcingType: '사입',
-    sourcingPlatform: '자체창고',
-    supplierName: '자체재고출고',
-    supplierBiz: '자체재고',
-    paymentCard: '-',
-    cardHolder: '-',
-    sourcingId: '',
-    sourcingStandardPrice: 6500,
-    purchaseCost: 13000,
-    point: 0,
-    purchasePrice: 13000,
-    purchaseStage: '완료',
-    paymentDate: '2026-10-16',
-    sourcingOrderNo: 'SELF-OUT-01',
-    courier: '우체국택배',
-    trackingNo: '6098231456',
-    inventoryUnitCost: 6500
-  });
-
+  // 이번 업로드 주문 데이터로 갱신 (실데이터 모드 ⭐)
   AppState.rawOrders = orders;
   saveStateToStorage();
+  renderBusinessSwitcher();
+  populateBusinessSelects();
   populateSelectFilters();
   renderAll();
+
+  // 사용자 안내 알림
+  const countableCount = orders.filter(o => o.orderStage === '완료' && o.purchaseStage === '완료').length;
+  alert(`🎉 파일 [${fileName}] 업로드가 완료되었습니다!\n총 ${orders.length}건 중 실적 집계 대상: ${countableCount}건이 등록되었습니다.`);
+  switchNav('ordersView');
+}
+
+/**
+ * CSV 텍스트 파싱 후 processOrderRows 연계 (하위 호환성 유지)
+ */
+function parseCSVOrders(csvText) {
+  const rows = parseCSV(csvText);
+  processOrderRows(rows, 'CSV 가져오기');
 }
 
 
