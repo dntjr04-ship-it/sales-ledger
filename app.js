@@ -5893,7 +5893,6 @@ function openOrderModal(index = -1, defaultMode = 'CONSIGNMENT_SALE') {
     } else {
       document.getElementById('formSourcingPlatform').value = o.sourcingPlatform || '';
       document.getElementById('formSupplierName').value = o.supplierName || '';
-      document.getElementById('formPurchaseStage').value = o.purchaseStage || '완료';
       document.getElementById('formPaymentCard').value = o.paymentCard || '';
       document.getElementById('formCardHolder').value = o.cardHolder || '';
 
@@ -5936,7 +5935,6 @@ function openOrderModal(index = -1, defaultMode = 'CONSIGNMENT_SALE') {
     document.getElementById('formOrderNo').value = (defaultMode === 'PURCHASE_ONLY' ? `BUY-${Date.now()}` : `ORD-${Date.now()}`);
     document.getElementById('formQty').value = 1;
     document.getElementById('formSourcingType').value = (defaultMode === 'CONSIGNMENT_SALE' ? '위탁' : '사입');
-    document.getElementById('formPurchaseStage').value = '완료';
     document.getElementById('formOrderStage').value = (defaultMode === 'PURCHASE_ONLY' ? '대기' : '완료');
 
     if (defaultMode === 'PURCHASE_SALE') {
@@ -6103,7 +6101,7 @@ function handleSaveOrder(e) {
     purchaseCost: purchaseCost,
     point: point,
     purchasePrice: purchasePrice, // 매입가 (사입매출은 단가+택배비)
-    purchaseStage: document.getElementById('formPurchaseStage') ? document.getElementById('formPurchaseStage').value : '완료',
+    purchaseStage: '완료',
     courier: document.getElementById('formCourier') ? document.getElementById('formCourier').value : '',
     trackingNo: document.getElementById('formTrackingNo') ? document.getElementById('formTrackingNo').value : '',
     inventoryUnitCost: inventoryUnitCost,
