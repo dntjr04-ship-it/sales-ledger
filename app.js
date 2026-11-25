@@ -1105,10 +1105,11 @@ function processOrderRows(rows, fileName = '주문파일') {
     const salePrice = getNum('salePrice');
     const shipping = getNum('shipping');
 
-    const totalSales = (salePrice * qty) + shipping;
+    // ⭐ 리사님의 핵심 요청: 판매가도 엑셀 파일에 있는 숫자 그대로 사용! (수량 곱해서 부풀리지 않음)
+    const totalSales = salePrice > 0 ? salePrice : shipping;
     let standardPrice = getNum('standardPrice');
     if (standardPrice <= 0 && totalSales > 0) {
-      standardPrice = Math.round(totalSales * 0.92);
+      standardPrice = totalSales;
     }
     const actualSettlement = standardPrice;
 
@@ -4575,13 +4576,13 @@ function renderExcelPlCardHtml(title, badgeText, themeColor, data) {
     `;
   }
 
-  // 합계 행
+  // 합계 행 (엑셀 원본처럼 흰색 배경에 굵은 테두리)
   const totalRowHtml = `
     <tr class="excel-total-row">
       <td class="excel-col-label"></td>
-      <td class="excel-col-val excel-amt-active">${data.totalIncome > 0 ? formatNumber(data.totalIncome) : '0'}</td>
+      <td class="excel-col-val">${data.totalIncome > 0 ? formatNumber(data.totalIncome) : '0'}</td>
       <td class="excel-col-label"></td>
-      <td class="excel-col-val excel-amt-active">${data.totalExpense > 0 ? formatNumber(data.totalExpense) : '0'}</td>
+      <td class="excel-col-val">${data.totalExpense > 0 ? formatNumber(data.totalExpense) : '0'}</td>
     </tr>
   `;
 
@@ -5432,9 +5433,8 @@ function handleModalSalePriceChange() {
   const salePrice = parseFloat(document.getElementById('formSalePrice').value) || 0;
   const shipping = parseFloat(document.getElementById('formShipping').value) || 0;
 
-  // 사입 매출: 판매가는 수량 전체의 총 금액! 위탁: 판매단가 × 수량
-  const total = isPurchaseSale ? (salePrice + shipping) : ((salePrice * qty) + shipping);
-  // ⭐ 리사님 요청 규칙: 정산예정가와 실제정산가는 기본적으로 (총판매금액 + 배송비)로 설정! (상품마다 마켓 수수료율이 다르므로 일률적 8% 차감 금지)
+  // ⭐ 리사님 요청 규칙: 판매가는 수량 곱셈 없이 입력된 금액 그대로 사용!
+  const total = (salePrice + shipping);
   const newStandardPrice = total > 0 ? total : 0;
 
   const stdPriceInput = document.getElementById('formStandardPrice');
@@ -5798,8 +5798,8 @@ function handleSaveOrder(e) {
     market = document.getElementById('formMarket').value;
     salePrice = parseFloat(document.getElementById('formSalePrice').value) || 0;
     shipping = parseFloat(document.getElementById('formShipping').value) || 0;
-    // ⭐ 사입 매출인 경우 입력한 판매가는 개당 단가가 아니라 수량 전체의 총 판매금액!
-    totalSales = isPurchaseSale ? (salePrice + shipping) : ((salePrice * qty) + shipping);
+    // ⭐ 리사님 요청 규칙: 판매가는 수량 곱셈 없이 입력된 금액 그대로 사용!
+    totalSales = (salePrice + shipping);
     const inputStd = parseFloat(document.getElementById('formStandardPrice').value);
     standardPrice = (!isNaN(inputStd) && inputStd > 0) ? inputStd : totalSales;
     const inputActual = parseFloat(document.getElementById('formActualSettlement').value);
