@@ -131,13 +131,14 @@ function getOrderMarginAmt(o) {
   if (isPurchaseOnly) return 0;
   const settleAmt = (o.actualSettlement > 0) ? o.actualSettlement : (o.standardPrice || o.totalSales || 0);
   const totalCost = getOrderActualCost(o);
-  return settleAmt - totalCost;
+  // ⭐ 리사님 적용 공식: 매출부가세, 수수료부가세, 매입부가세 반영 알짜 순마진 = (정산가 - 매입가) / 1.1
+  return Math.round((settleAmt - totalCost) / 1.1);
 }
 
 /**
  * ⭐ 주문 마진율(%) 반환 헬퍼:
  * - 업로드 파일에서 읽어온 o.marginRate 수치가 있으면 파일 수치를 그대로 연결!
- * - 파일에 마진율이 없는 경우에만 보조적으로 (마진금액 / 정산가) * 100 산출
+ * - 파일에 마진율이 없는 경우 보조적으로 (마진금액 / 판매가) * 100 산출
  */
 function getOrderMarginRate(o) {
   if (o.marginRate !== undefined && o.marginRate !== null && !isNaN(o.marginRate)) {
@@ -145,10 +146,10 @@ function getOrderMarginRate(o) {
   }
   const isPurchaseOnly = (o.sourcingType === '사입' && (!o.market || o.salePrice === 0));
   if (isPurchaseOnly) return 0;
-  const settleAmt = (o.actualSettlement > 0) ? o.actualSettlement : (o.standardPrice || o.totalSales || 0);
+  const salesBase = (o.totalSales > 0) ? o.totalSales : ((o.actualSettlement > 0) ? o.actualSettlement : (o.standardPrice || 0));
   const marginAmt = getOrderMarginAmt(o);
-  if (settleAmt > 0) {
-    return (marginAmt / settleAmt) * 100;
+  if (salesBase > 0) {
+    return (marginAmt / salesBase) * 100;
   }
   return 0;
 }
@@ -5481,11 +5482,17 @@ function updateActualSettlement(index, val) {
     const o = AppState.rawOrders[index];
     o.actualSettlement = cleanNum;
     o.standardPrice = cleanNum; // ⭐ 정산예정가와 통합되어 둘 다 동기화
+
+    // ⭐ 리사님 요청: 지금 적용되어 있는 부가세 정산 공식 적용!
+    // 마진금액 = (정산가 - 매입가) / 1.1 (매출부가세, 수수료부가세, 매입부가세 반영 알짜 마진)
     const cost = getOrderActualCost(o);
-    o.marginAmt = cleanNum - cost;
-    if (cleanNum > 0) {
-      o.marginRate = ((cleanNum - cost) / cleanNum) * 100;
-    }
+    const newMarginAmt = Math.round((cleanNum - cost) / 1.1);
+    o.marginAmt = newMarginAmt;
+
+    // 마진율 = (마진금액 / 판매가) * 100
+    const salesBase = (o.totalSales > 0) ? o.totalSales : (cleanNum > 0 ? cleanNum : 1);
+    o.marginRate = (newMarginAmt / salesBase) * 100;
+
     saveStateToStorage();
     renderAll();
   }
