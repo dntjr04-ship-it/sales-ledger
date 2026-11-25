@@ -113,6 +113,42 @@ function getOrderActualCost(o) {
   return productCost + deliveryFee;
 }
 
+/**
+ * ⭐ 리사님의 핵심 규칙:
+ * "마진금액과 마진률은 직접계산하지 말고 업로드 파일에 있는 수치를 연결해줘"
+ * - 업로드 파일에서 읽어온 o.marginAmt 수치가 있으면 파일 수치를 그대로 연결!
+ * - 파일에 마진금액이 없는 경우에만 보조적으로 (정산가 - 총매입원가) 산출
+ */
+function getOrderMarginAmt(o) {
+  if (o.marginAmt !== undefined && o.marginAmt !== null && !isNaN(o.marginAmt)) {
+    return Number(o.marginAmt);
+  }
+  const isPurchaseOnly = (o.sourcingType === '사입' && (!o.market || o.salePrice === 0));
+  if (isPurchaseOnly) return 0;
+  const settleAmt = (o.actualSettlement > 0) ? o.actualSettlement : (o.standardPrice || o.totalSales || 0);
+  const totalCost = getOrderActualCost(o);
+  return settleAmt - totalCost;
+}
+
+/**
+ * ⭐ 주문 마진율(%) 반환 헬퍼:
+ * - 업로드 파일에서 읽어온 o.marginRate 수치가 있으면 파일 수치를 그대로 연결!
+ * - 파일에 마진율이 없는 경우에만 보조적으로 (마진금액 / 정산가) * 100 산출
+ */
+function getOrderMarginRate(o) {
+  if (o.marginRate !== undefined && o.marginRate !== null && !isNaN(o.marginRate)) {
+    return Number(o.marginRate);
+  }
+  const isPurchaseOnly = (o.sourcingType === '사입' && (!o.market || o.salePrice === 0));
+  if (isPurchaseOnly) return 0;
+  const settleAmt = (o.actualSettlement > 0) ? o.actualSettlement : (o.standardPrice || o.totalSales || 0);
+  const marginAmt = getOrderMarginAmt(o);
+  if (settleAmt > 0) {
+    return (marginAmt / settleAmt) * 100;
+  }
+  return 0;
+}
+
 const CURRENT_APP_DATA_VERSION = '20261125_CLEAN_WRONG_DATA_V2';
 
 /**
@@ -934,7 +970,9 @@ function processOrderRows(rows, fileName = '주문파일') {
     supplierBiz: ['사업자명', '공급자사업자'],
     orderStage: ['주문구분', '주문상태', '처리상태', '진행상태', '등록상품'],
     purchaseStage: ['발주상태', '매입상태'],
-    sourcingType: ['매입유형', '소싱유형', '사입/위탁', '구분']
+    sourcingType: ['매입유형', '소싱유형', '사입/위탁', '구분'],
+    marginAmt: ['마진금액', '마진액', '마진(원)', '예상마진', '예상마진금액', '순이익', '이익', '이익금', '영업이익', '수익금', '마진', 'Margin', 'Profit'],
+    marginRate: ['마진율', '마진률', '예상마진율', '예상마진률', '수익률', '이익률', '순이익률', '마진(%)', '마진비율', '마진퍼센트', 'Margin%', 'Margin Rate', 'Profit Rate', 'Profit%']
   };
 
   // 인덱스 매핑 헬퍼
@@ -961,6 +999,40 @@ function processOrderRows(rows, fileName = '주문파일') {
   Object.keys(COL_CANDIDATES).forEach(key => {
     colIdx[key] = findColIndex(COL_CANDIDATES[key]);
   });
+
+  // ⭐ 마진금액과 마진율 컬럼 인덱스 정밀 보정 (마진율 컬럼이 마진금액으로 오인식되는 것 방지)
+  const rateCandidates = ['마진율', '마진률', '예상마진율', '예상마진률', '수익률', '이익률', '순이익률', '마진(%)', '마진비율', 'margin%', 'marginrate', 'profit%'];
+  let foundRateIdx = -1;
+  for (const c of rateCandidates) {
+    const cleanC = c.replace(/[\s\-_()\[\]]/g, '').toLowerCase();
+    const idx = rawHeaders.findIndex(h => h.replace(/[\s\-_()\[\]]/g, '').toLowerCase() === cleanC);
+    if (idx !== -1) { foundRateIdx = idx; break; }
+  }
+  if (foundRateIdx === -1) {
+    for (const c of rateCandidates) {
+      const cleanC = c.replace(/[\s\-_()\[\]]/g, '').toLowerCase();
+      const idx = rawHeaders.findIndex(h => h.replace(/[\s\-_()\[\]]/g, '').toLowerCase().includes(cleanC));
+      if (idx !== -1) { foundRateIdx = idx; break; }
+    }
+  }
+
+  const amtCandidates = ['마진금액', '마진액', '마진(원)', '예상마진', '예상마진금액', '순이익', '이익', '이익금', '영업이익', '수익금', '마진', 'margin', 'profit'];
+  let foundAmtIdx = -1;
+  for (const c of amtCandidates) {
+    const cleanC = c.replace(/[\s\-_()\[\]]/g, '').toLowerCase();
+    const idx = rawHeaders.findIndex((h, i) => i !== foundRateIdx && h.replace(/[\s\-_()\[\]]/g, '').toLowerCase() === cleanC);
+    if (idx !== -1) { foundAmtIdx = idx; break; }
+  }
+  if (foundAmtIdx === -1) {
+    for (const c of amtCandidates) {
+      const cleanC = c.replace(/[\s\-_()\[\]]/g, '').toLowerCase();
+      const idx = rawHeaders.findIndex((h, i) => i !== foundRateIdx && h.replace(/[\s\-_()\[\]]/g, '').toLowerCase().includes(cleanC) && !h.includes('율') && !h.includes('률') && !h.includes('%'));
+      if (idx !== -1) { foundAmtIdx = idx; break; }
+    }
+  }
+
+  colIdx.marginRate = foundRateIdx;
+  colIdx.marginAmt = foundAmtIdx;
 
   const orders = [];
   const defaultBiz = (AppState.currentBizFilter !== 'ALL') ? AppState.currentBizFilter : (AppState.businesses[0]?.name || '아커만');
@@ -1087,6 +1159,36 @@ function processOrderRows(rows, fileName = '주문파일') {
 
     const inventoryUnitCost = purchaseCost > 0 ? purchaseCost : purchasePrice;
 
+    // ⭐ 리사님의 핵심 요청: 마진금액과 마진률은 직접 계산하지 않고 업로드 파일에 있는 수치를 그대로 연결!
+    let marginAmt = null;
+    let marginRate = null;
+
+    if (colIdx.marginAmt !== -1 && r[colIdx.marginAmt] !== undefined && r[colIdx.marginAmt] !== null) {
+      const rawVal = String(r[colIdx.marginAmt]).trim();
+      if (rawVal !== '' && rawVal !== '-') {
+        const cleanVal = rawVal.replace(/[^0-9.-]+/g, "");
+        const parsed = parseFloat(cleanVal);
+        if (!isNaN(parsed)) {
+          marginAmt = parsed;
+        }
+      }
+    }
+
+    if (colIdx.marginRate !== -1 && r[colIdx.marginRate] !== undefined && r[colIdx.marginRate] !== null) {
+      const rawVal = String(r[colIdx.marginRate]).trim();
+      if (rawVal !== '' && rawVal !== '-') {
+        const cleanVal = rawVal.replace(/[^0-9.-]+/g, "");
+        let parsed = parseFloat(cleanVal);
+        if (!isNaN(parsed)) {
+          // 엑셀에서 0.155처럼 소수로 서식 지정된 백분율인 경우 (15.5%)
+          if (parsed > 0 && parsed < 1 && !rawVal.includes('%')) {
+            parsed = Math.round(parsed * 1000) / 10;
+          }
+          marginRate = parsed;
+        }
+      }
+    }
+
     orders.push({
       orderNo,
       market,
@@ -1119,7 +1221,9 @@ function processOrderRows(rows, fileName = '주문파일') {
       sourcingOrderNo,
       courier,
       trackingNo,
-      inventoryUnitCost
+      inventoryUnitCost,
+      marginAmt,
+      marginRate
     });
   }
 
@@ -1260,7 +1364,7 @@ function renderDashboard() {
     totalSettlement += settleAmt;
     const itemCost = getOrderActualCost(o);
     totalCost += itemCost;
-    totalProfit += (settleAmt - itemCost);
+    totalProfit += getOrderMarginAmt(o);
   });
 
   const avgMargin = totalSettlement > 0 ? (totalProfit / totalSettlement) * 100 : 0;
@@ -1402,7 +1506,7 @@ function renderTopTables(countableOrders) {
       };
     }
     const settleAmt = (o.actualSettlement > 0) ? o.actualSettlement : o.standardPrice;
-    const profit = settleAmt - getOrderActualCost(o);
+    const profit = getOrderMarginAmt(o);
 
     prodMap[o.productName].qty += o.qty;
     prodMap[o.productName].sales += o.totalSales;
@@ -1507,8 +1611,9 @@ function renderOrdersTable() {
     const ptAmount = (o.point > 0 ? o.point : (o.pointUsed > 0 ? o.pointUsed : 0));
 
     const settleAmt = (o.actualSettlement > 0) ? o.actualSettlement : o.standardPrice;
-    const marginAmt = (!isPurchaseOnly && totalCost > 0) ? (settleAmt - totalCost) : 0;
-    const marginPct = (!isPurchaseOnly && settleAmt > 0 && totalCost > 0) ? (marginAmt / settleAmt) * 100 : 0;
+    // ⭐ 마진금액과 마진률: 업로드 파일 수치 그대로 연결 (직접 계산 대신 파일 우선 반영)
+    const marginAmt = getOrderMarginAmt(o);
+    const marginPct = getOrderMarginRate(o);
 
     const isCounted = isOrderCountable(o);
 
@@ -1616,15 +1721,19 @@ function renderOrdersTable() {
           ` : ''}
         </td>
 
-        <!-- 15. 마진금액 -->
+        <!-- 15. 마진금액 (업로드 파일 수치 연결 ⭐) -->
         <td style="text-align:right;">
-          ${isPurchaseOnly ? '<span style="color:#94a3b8;font-size:11px;">(사입재고)</span>' : `<strong class="text-success">${formatKRW(marginAmt)}</strong>`}
+          ${isPurchaseOnly ? '<span style="color:#94a3b8;font-size:11px;">(사입재고)</span>' : `
+            <strong class="${marginAmt >= 0 ? 'text-success' : 'text-danger'}" style="font-size:12.5px;">
+              ${formatKRW(marginAmt)}
+            </strong>
+          `}
         </td>
 
-        <!-- 16. 마진율 -->
+        <!-- 16. 마진율 (업로드 파일 수치 연결 ⭐) -->
         <td style="text-align:center;">
           ${isPurchaseOnly ? '-' : `
-            <span class="badge" style="background:${marginPct >= 15 ? '#ecfdf5' : '#f1f5f9'};color:${marginPct >= 15 ? '#059669' : '#475569'}">
+            <span class="badge" style="background:${marginPct >= 15 ? '#ecfdf5' : (marginPct < 0 ? '#fef2f2' : '#f1f5f9')};color:${marginPct >= 15 ? '#059669' : (marginPct < 0 ? '#dc2626' : '#475569')};font-weight:700;">
               ${marginPct.toFixed(1)}%
             </span>
           `}
@@ -1719,7 +1828,7 @@ function renderOrdersDailyTable() {
 
     const settleAmt = (o.actualSettlement > 0) ? o.actualSettlement : o.standardPrice;
     const actualCost = getOrderActualCost(o);
-    const mAmount = Math.round(settleAmt - actualCost);
+    const mAmount = Math.round(getOrderMarginAmt(o));
 
     dayMap[day].count += 1;
     dayMap[day].grossSales += (o.totalSales || 0);
@@ -1825,7 +1934,7 @@ function renderOrdersMonthlyTable() {
 
     const settleAmt = (o.actualSettlement > 0) ? o.actualSettlement : o.standardPrice;
     const actualCost = getOrderActualCost(o);
-    const mAmount = Math.round(settleAmt - actualCost);
+    const mAmount = Math.round(getOrderMarginAmt(o));
 
     monthMap[monthKey].count += 1;
     monthMap[monthKey].grossSales += (o.totalSales || 0);
@@ -5975,3 +6084,5 @@ window.deleteCustomAsset = deleteCustomAsset;
 window.renderCustomAssets = renderCustomAssets;
 window.getOrderProductCost = getOrderProductCost;
 window.getOrderActualCost = getOrderActualCost;
+window.getOrderMarginAmt = getOrderMarginAmt;
+window.getOrderMarginRate = getOrderMarginRate;
