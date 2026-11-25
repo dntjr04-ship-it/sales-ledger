@@ -6,10 +6,16 @@
 // 전역 상태 관리
 const AppState = {
   rawOrders: [],              // 전체 주문 데이터
-  currentBizFilter: 'ALL',    // 'ALL', '사업자A', '사업자B' 또는 사용자 등록 사업자명
+  currentBizFilter: 'ALL',    // 'ALL', '아커만', '제니틱스' 또는 사용자 등록 사업자명
   businesses: [               // 🏢 등록 사업자 목록
-    { id: 'biz_a', name: '사업자A', owner: '강우석', regNum: '', desc: '스마트스토어 / 쿠팡 주력' },
-    { id: 'biz_b', name: '사업자B', owner: '강우석', regNum: '', desc: '오픈마켓 / 도매매 주력' }
+    { id: 'biz_ackerman', name: '아커만', owner: '리사', regNum: '', desc: '스마트스토어 / 쿠팡 주력' },
+    { id: 'biz_zenitics', name: '제니틱스', owner: '리사', regNum: '', desc: '오픈마켓 / 도매매 주력' }
+  ],
+  bizMappingRules: [          // 🏢 사업자 자동 분류 매핑 규칙
+    { id: 'rule_1', field: 'market', operator: 'contains', value: '스마트스토어', targetBiz: '아커만' },
+    { id: 'rule_2', field: 'market', operator: 'contains', value: '쿠팡', targetBiz: '제니틱스' },
+    { id: 'rule_3', field: 'market', operator: 'contains', value: '올웨이즈', targetBiz: '아커만' },
+    { id: 'rule_4', field: 'market', operator: 'contains', value: '11번가', targetBiz: '제니틱스' }
   ],
   searchQuery: '',            // 검색어
   selectedMarket: 'ALL',      // 판매사이트 필터
@@ -246,8 +252,8 @@ function escapeHtml(str) {
  */
 function getBizBadgeStyle(bizName) {
   const palette = [
-    { bg: '#e0e7ff', color: '#3730a3' }, // Indigo (사업자A 기본)
-    { bg: '#fef3c7', color: '#92400e' }, // Amber (사업자B 기본)
+    { bg: '#e0e7ff', color: '#3730a3' }, // Indigo (아커만 기본)
+    { bg: '#fef3c7', color: '#92400e' }, // Amber (제니틱스 기본)
     { bg: '#ecfdf5', color: '#065f46' }, // Emerald
     { bg: '#f3e8ff', color: '#6b21a8' }, // Purple
     { bg: '#ffe4e6', color: '#9f1239' }, // Rose
@@ -257,8 +263,8 @@ function getBizBadgeStyle(bizName) {
   ];
 
   if (!bizName || bizName === '공통') return palette[7];
-  if (bizName === '사업자A') return palette[0];
-  if (bizName === '사업자B') return palette[1];
+  if (bizName === '아커만' || bizName === '사업자A') return palette[0];
+  if (bizName === '제니틱스' || bizName === '사업자B') return palette[1];
 
   let hash = 0;
   for (let i = 0; i < bizName.length; i++) {
@@ -347,6 +353,22 @@ function populateBusinessSelects() {
     expenseFilterBiz.innerHTML = `<option value="ALL">모든 사업자</option>` +
       bizList.map(b => `<option value="${escapeHtml(b.name)}">${escapeHtml(b.name)}</option>`).join('');
     if (curVal) expenseFilterBiz.value = curVal;
+  }
+
+  // 7. 주문장 일괄 변경 사업자 (#batchTargetBizSelect)
+  const batchTargetBizSelect = document.getElementById('batchTargetBizSelect');
+  if (batchTargetBizSelect) {
+    const curVal = batchTargetBizSelect.value;
+    batchTargetBizSelect.innerHTML = bizList.map(b => `<option value="${escapeHtml(b.name)}">${escapeHtml(b.name)}</option>`).join('');
+    if (curVal && bizList.some(b => b.name === curVal)) batchTargetBizSelect.value = curVal;
+  }
+
+  // 8. 자동 매핑 규칙 추가 모달 사업자 (#newRuleTargetBiz)
+  const newRuleTargetBiz = document.getElementById('newRuleTargetBiz');
+  if (newRuleTargetBiz) {
+    const curVal = newRuleTargetBiz.value;
+    newRuleTargetBiz.innerHTML = bizList.map(b => `<option value="${escapeHtml(b.name)}">${escapeHtml(b.name)}</option>`).join('');
+    if (curVal && bizList.some(b => b.name === curVal)) newRuleTargetBiz.value = curVal;
   }
 }
 
@@ -563,24 +585,24 @@ function handleFile(file) {
  * 인라인 백업 샘플 CSV (로컬 file:/// 프로토콜에서도 즉시 로드)
  */
 const INLINE_SAMPLE_CSV = `주문고유번호,판매사이트명,판매자ID,수집일,주문일,결제일,판매사이트 주문번호,상품명,주문선택사항,판매가,주문수량,배송비금액,수령자명,송장번호,한줄메모,상품요약,출고중지여부,담당자,결제플랫폼,카드명의,결제카드,결제ID,결제기준가,결제가,포인트,결제일자,주문번호,택배사,주문송장번호,판매처명,사업자명,주문자 메모,CS담당자메모,로스처리,등록상품
-103309491451,스마트스토어,사업자A,2026-10-18 오후 5:18:25,2026-10-17 오전 2:13:14,2026-10-17 오전 2:13:24,2026101751952881,CJ 비비고 소고기 미역국 500g x 10개,,29700,1,2500,김철수,,,,,,,,,,,,,,,,,,,,미등록
-101034774051,스마트스토어,사업자A,2026-10-18 오후 5:18:25,2026-10-17 오전 5:41:31,2026-10-17 오전 5:41:36,2026101752416041,동아오츠카 나랑드 사이다 제로 그린애플 500ml x 24개,,15090,1,2500,이영희,,,,,,지마켓,tjrdnrkd,스마일카드 Edition3,tjrdnrkd,16753,"14,160",,2026-10-18 오후 5:48:35,4504976132,CJ택배,302535711474,여병주,에스엠맨테크,,,,등록
-100563940973,스마트스토어,사업자A,2026-10-18 오후 5:18:25,2026-10-17 오전 11:59:24,2026-10-17 오전 11:59:42,2026101756699671,센텔리안24 마데카 더마 마스크 x 2개,,11510,1,2500,박민수,,,,,,,,,,,11920,,,123,우체국택배,6082251098067,,,,,,미등록
-101235309067,스마트스토어,사업자A,2026-10-18 오후 5:18:25,2026-10-17 오후 11:10:37,2026-10-17 오후 11:10:48,2026101767895311,코카콜라 태양의 마테차 500ml x 24개,,14000,1,2500,최지우,,,,,,,,,,,,,,,,,,,,미등록
-100104986839,쿠팡(신),사업자B,2026-10-18 오후 5:17:23,2026-10-17 오전 1:40:00,2026-10-17 오전 1:40:00,15103651673828,오리온 비쵸비 초코맛+딸기맛 세트,125g 1세트,16830,1,0,정하나,,,,,,옥션,tjrdnrkd,스마일카드 Edition3,tjrdnrkd,,"14,140",,2026-10-18 오후 5:49:05,2573535631,CJ대한통운,302535723260,스타배송,,,,,등록
-103203677470,쿠팡(신),사업자B,2026-10-18 오후 5:17:23,2026-10-17 오전 6:51:00,2026-10-17 오전 6:51:00,2103656517335,오리온 비쵸비 초코맛+딸기맛 세트,125g 1세트,16830,1,0,한수민,,,,,,옥션,tjrdnrkd,스마일카드 Edition3,tjrdnrkd,,"14,140",,2026-10-18 오후 5:49:02,2573535690,CJ대한통운,302535723282,스타배송,,,,,등록
-101868691697,쿠팡(신),사업자B,2026-10-18 오후 5:17:23,2026-10-17 오후 12:50:00,2026-10-17 오후 12:50:00,30103661912842,비첸향 미니이지 포크 원물간식,500g 1개,52830,1,0,윤서준,,,,,,롯데온,강우석,국민카드,,,"45,750",,2026-10-19 오전 1:11:13,2026101912630748,,,,,,,,등록
-101092965762,쿠팡(신),사업자B,2026-10-18 오후 5:17:23,2026-10-18 오후 2:43:00,2026-10-18 오후 2:43:00,21103685219095,지구식단 슬림핏 콩면 4인분,150g 10개,21810,1,0,송지은,,,,,,지마켓,tjrdnrkd,삼성카드,tjrdnrkd,,"17,410",,2026-10-18 오후 5:48:04,4504981191,,,신세계라이브쇼핑,(주)신세계라이브쇼핑,,,,등록
-102427680450,올웨이즈,사업자A,2026-10-18 오후 5:17:17,2026-10-18 오전 6:31:23,2026-10-18 오전 6:31:23,308bc34e-bad1-4ce6,정성곳간 뼈없는 갈비탕 800g x 8개,단일상품,34354,1,0,임다솜,,,,,,네이버,강우석,우리카드,tjrdnrkd,,"31,980",,2026-10-18 오후 5:58:44,2026101881041151,한진택배,522529516250,NS홈쇼핑,(주)엔에스쇼핑,,,,등록
-103298032857,올웨이즈,사업자A,2026-10-18 오후 5:17:17,2026-10-17 오후 9:08:57,2026-10-17 오후 9:08:57,fce09006-e804-4657,켈로그 프링글스 치즈맛 110g x 12개,단일상품,24840,1,0,배도현,,,,,,지마켓,tjrdnrkd,스마일카드 Edition3,tjrdnrkd,,"18,820",,2026-10-18 오후 6:13:02,4504986076,CJ택배,304347554293,켈로그대리점,주식회사편한세상,,,,등록
-100836987268,G마켓,사업자A,2026-10-18 오후 5:16:53,2026-10-18 오후 4:49:00,2026-10-18 오후 4:49:00,4504964806,쏘피 바디피트 천연코튼 팬티라이너 x 5개,,16300,1,0,오유진,,,,,,옥션,tjrdnrkd,스마일카드 Edition3,tjrdnrkd,,"12,020",,2026-10-18 오후 6:15:13,2573537089,CJ대한통운,302535728322,스타배송,,,,,등록
-101294781887,카카오 톡스토어,사업자A,2026-10-18 오후 5:16:33,2026-10-17 오전 1:17:16,2026-10-17 오전 1:17:15,3498154817,사조참치 안심따개 100g x 12개,,22000,1,0,류태현,,,,,,지마켓,tjrdnrkd,스마일카드 Edition3,tjrdnrkd,,"18,330",,2026-10-18 오후 6:12:57,4504987023,CJ택배,302535815984,여병주,에스엠맨테크,,,,등록
-100492432399,카카오 톡스토어,사업자A,2026-10-18 오후 5:16:33,2026-10-17 오후 6:36:47,2026-10-17 오후 6:36:47,3498760000,맥심 모카골드 마일드 커피믹스 400T,"수량/400개",57500,1,0,신예원,,,,,,네이버,강우석,우리카드,tjrdnrkd,,"49,900",,2026-10-18 오후 6:10:30,2026101881279251,CJ대한통운,512166957343,큐마트몰,(주)서광물류,,,,등록
-102902045675,카카오 톡스토어,사업자A,2026-10-18 오후 5:16:33,2026-10-18 오전 11:15:36,2026-10-18 오전 11:15:35,3499252188,프로쉬 식기세척기세제 미니 50개입 x 3개,,45600,1,0,구자경,,,,,,지마켓,tjrdnrkd,스마일카드 Edition3,tjrdnrkd,,"38,900",1000,2026-10-18 오후 6:12:56,4504988287,CJ택배,522825439735,프로쉬스토어,(주)제이엔비,,,,등록
-102699088111,옥션,사업자A,2026-10-18 오후 5:16:21,2026-10-17 오전 5:26:00,2026-10-17 오전 5:26:00,2573444362,비폰 포보 베트남 쌀국수 소고기맛 60g x 30개,,23200,1,0,권지후,,,,,,쿠팡,강우석,국민카드,tjrdnrkd,,16330,,,27103688371798,로켓배송,10333082276646,,,,,,등록
-100035653447,올웨이즈,사업자A,2026-10-19 오전 12:05:28,2026-10-18 오후 8:52:12,2026-10-18 오후 8:52:12,706f0221-045a,동화약품 소다활 매실맛 500ml x 48개,단일상품,37291,1,0,문채원,,,,,,11번가,강우석,신한카드,tjrdnrkd,,34910,,2026-10-19 오전,20261019109464773,CJ대한통운,531055086502,,,,,,등록
-102963544829,스마트스토어,사업자A,2026-10-19 오전 12:06:31,2026-10-18 오후 5:34:52,2026-10-18 오후 5:35:29,2026101880559891,해화당 이영자의 뼈없는 갈비탕 x 8개,수량: 1세트,55100,1,2500,안지호,,,,,,지마켓,강우석,삼성카드,tjrdnrkd,,"47,820",,2026-10-19 오전 1:31:42,4505126870,CJ택배,7721414942,롯데원티비,(주)우리홈쇼핑,,,,등록
-100186721641,쿠팡(신),사업자B,2026-10-18 오후 6:41:00,2026-10-18 오후 6:41:00,2026-10-18 오후 6:41:00,24103688719737,혁명티슈 멀티 세정 티슈 85매,3개 세트,34900,1,0,백서현,,,,,,sk스토아,강우석,삼성카드,강우석,,31640,,2026-10-19 오전 10:44:58,20261019651572,,,,,,,,등록`;
+103309491451,스마트스토어,아커만,2026-10-18 오후 5:18:25,2026-10-17 오전 2:13:14,2026-10-17 오전 2:13:24,2026101751952881,CJ 비비고 소고기 미역국 500g x 10개,,29700,1,2500,김철수,,,,,,,,,,,,,,,,,,,,미등록
+101034774051,스마트스토어,아커만,2026-10-18 오후 5:18:25,2026-10-17 오전 5:41:31,2026-10-17 오전 5:41:36,2026101752416041,동아오츠카 나랑드 사이다 제로 그린애플 500ml x 24개,,15090,1,2500,이영희,,,,,,지마켓,tjrdnrkd,스마일카드 Edition3,tjrdnrkd,16753,"14,160",,2026-10-18 오후 5:48:35,4504976132,CJ택배,302535711474,여병주,에스엠맨테크,,,,등록
+100563940973,스마트스토어,아커만,2026-10-18 오후 5:18:25,2026-10-17 오전 11:59:24,2026-10-17 오전 11:59:42,2026101756699671,센텔리안24 마데카 더마 마스크 x 2개,,11510,1,2500,박민수,,,,,,,,,,,11920,,,123,우체국택배,6082251098067,,,,,,미등록
+101235309067,스마트스토어,아커만,2026-10-18 오후 5:18:25,2026-10-17 오후 11:10:37,2026-10-17 오후 11:10:48,2026101767895311,코카콜라 태양의 마테차 500ml x 24개,,14000,1,2500,최지우,,,,,,,,,,,,,,,,,,,,미등록
+100104986839,쿠팡(신),제니틱스,2026-10-18 오후 5:17:23,2026-10-17 오전 1:40:00,2026-10-17 오전 1:40:00,15103651673828,오리온 비쵸비 초코맛+딸기맛 세트,125g 1세트,16830,1,0,정하나,,,,,,옥션,tjrdnrkd,스마일카드 Edition3,tjrdnrkd,,"14,140",,2026-10-18 오후 5:49:05,2573535631,CJ대한통운,302535723260,스타배송,,,,,등록
+103203677470,쿠팡(신),제니틱스,2026-10-18 오후 5:17:23,2026-10-17 오전 6:51:00,2026-10-17 오전 6:51:00,2103656517335,오리온 비쵸비 초코맛+딸기맛 세트,125g 1세트,16830,1,0,한수민,,,,,,옥션,tjrdnrkd,스마일카드 Edition3,tjrdnrkd,,"14,140",,2026-10-18 오후 5:49:02,2573535690,CJ대한통운,302535723282,스타배송,,,,,등록
+101868691697,쿠팡(신),제니틱스,2026-10-18 오후 5:17:23,2026-10-17 오후 12:50:00,2026-10-17 오후 12:50:00,30103661912842,비첸향 미니이지 포크 원물간식,500g 1개,52830,1,0,윤서준,,,,,,롯데온,강우석,국민카드,,,"45,750",,2026-10-19 오전 1:11:13,2026101912630748,,,,,,,,등록
+101092965762,쿠팡(신),제니틱스,2026-10-18 오후 5:17:23,2026-10-18 오후 2:43:00,2026-10-18 오후 2:43:00,21103685219095,지구식단 슬림핏 콩면 4인분,150g 10개,21810,1,0,송지은,,,,,,지마켓,tjrdnrkd,삼성카드,tjrdnrkd,,"17,410",,2026-10-18 오후 5:48:04,4504981191,,,신세계라이브쇼핑,(주)신세계라이브쇼핑,,,,등록
+102427680450,올웨이즈,아커만,2026-10-18 오후 5:17:17,2026-10-18 오전 6:31:23,2026-10-18 오전 6:31:23,308bc34e-bad1-4ce6,정성곳간 뼈없는 갈비탕 800g x 8개,단일상품,34354,1,0,임다솜,,,,,,네이버,강우석,우리카드,tjrdnrkd,,"31,980",,2026-10-18 오후 5:58:44,2026101881041151,한진택배,522529516250,NS홈쇼핑,(주)엔에스쇼핑,,,,등록
+103298032857,올웨이즈,아커만,2026-10-18 오후 5:17:17,2026-10-17 오후 9:08:57,2026-10-17 오후 9:08:57,fce09006-e804-4657,켈로그 프링글스 치즈맛 110g x 12개,단일상품,24840,1,0,배도현,,,,,,지마켓,tjrdnrkd,스마일카드 Edition3,tjrdnrkd,,"18,820",,2026-10-18 오후 6:13:02,4504986076,CJ택배,304347554293,켈로그대리점,주식회사편한세상,,,,등록
+100836987268,G마켓,아커만,2026-10-18 오후 5:16:53,2026-10-18 오후 4:49:00,2026-10-18 오후 4:49:00,4504964806,쏘피 바디피트 천연코튼 팬티라이너 x 5개,,16300,1,0,오유진,,,,,,옥션,tjrdnrkd,스마일카드 Edition3,tjrdnrkd,,"12,020",,2026-10-18 오후 6:15:13,2573537089,CJ대한통운,302535728322,스타배송,,,,,등록
+101294781887,카카오 톡스토어,아커만,2026-10-18 오후 5:16:33,2026-10-17 오전 1:17:16,2026-10-17 오전 1:17:15,3498154817,사조참치 안심따개 100g x 12개,,22000,1,0,류태현,,,,,,지마켓,tjrdnrkd,스마일카드 Edition3,tjrdnrkd,,"18,330",,2026-10-18 오후 6:12:57,4504987023,CJ택배,302535815984,여병주,에스엠맨테크,,,,등록
+100492432399,카카오 톡스토어,아커만,2026-10-18 오후 5:16:33,2026-10-17 오후 6:36:47,2026-10-17 오후 6:36:47,3498760000,맥심 모카골드 마일드 커피믹스 400T,"수량/400개",57500,1,0,신예원,,,,,,네이버,강우석,우리카드,tjrdnrkd,,"49,900",,2026-10-18 오후 6:10:30,2026101881279251,CJ대한통운,512166957343,큐마트몰,(주)서광물류,,,,등록
+102902045675,카카오 톡스토어,아커만,2026-10-18 오후 5:16:33,2026-10-18 오전 11:15:36,2026-10-18 오전 11:15:35,3499252188,프로쉬 식기세척기세제 미니 50개입 x 3개,,45600,1,0,구자경,,,,,,지마켓,tjrdnrkd,스마일카드 Edition3,tjrdnrkd,,"38,900",1000,2026-10-18 오후 6:12:56,4504988287,CJ택배,522825439735,프로쉬스토어,(주)제이엔비,,,,등록
+102699088111,옥션,아커만,2026-10-18 오후 5:16:21,2026-10-17 오전 5:26:00,2026-10-17 오전 5:26:00,2573444362,비폰 포보 베트남 쌀국수 소고기맛 60g x 30개,,23200,1,0,권지후,,,,,,쿠팡,강우석,국민카드,tjrdnrkd,,16330,,,27103688371798,로켓배송,10333082276646,,,,,,등록
+100035653447,올웨이즈,아커만,2026-10-19 오전 12:05:28,2026-10-18 오후 8:52:12,2026-10-18 오후 8:52:12,706f0221-045a,동화약품 소다활 매실맛 500ml x 48개,단일상품,37291,1,0,문채원,,,,,,11번가,강우석,신한카드,tjrdnrkd,,34910,,2026-10-19 오전,20261019109464773,CJ대한통운,531055086502,,,,,,등록
+102963544829,스마트스토어,아커만,2026-10-19 오전 12:06:31,2026-10-18 오후 5:34:52,2026-10-18 오후 5:35:29,2026101880559891,해화당 이영자의 뼈없는 갈비탕 x 8개,수량: 1세트,55100,1,2500,안지호,,,,,,지마켓,강우석,삼성카드,tjrdnrkd,,"47,820",,2026-10-19 오전 1:31:42,4505126870,CJ택배,7721414942,롯데원티비,(주)우리홈쇼핑,,,,등록
+100186721641,쿠팡(신),제니틱스,2026-10-18 오후 6:41:00,2026-10-18 오후 6:41:00,2026-10-18 오후 6:41:00,24103688719737,혁명티슈 멀티 세정 티슈 85매,3개 세트,34900,1,0,백서현,,,,,,sk스토아,강우석,삼성카드,강우석,,31640,,2026-10-19 오전 10:44:58,20261019651572,,,,,,,,등록`;
 
 // =========================================================
 // 브라우저 로컬 저장소 (LocalStorage) 영구 보관 로직 ⭐
@@ -594,6 +616,7 @@ const STORAGE_KEY_BANK_TX = 'LISA_BANK_TRANSACTIONS_V1';
 const STORAGE_KEY_EXPENSES = 'LISA_CUSTOM_EXPENSES_V1';
 const STORAGE_KEY_ASSETS = 'LISA_CUSTOM_ASSETS_V1';
 const STORAGE_KEY_BUSINESSES = 'LISA_BUSINESSES_V1';
+const STORAGE_KEY_BIZ_RULES = 'LISA_BIZ_RULES_V1';
 
 function saveStateToStorage() {
   try {
@@ -605,6 +628,7 @@ function saveStateToStorage() {
     localStorage.setItem(STORAGE_KEY_EXPENSES, JSON.stringify(AppState.customExpenses));
     localStorage.setItem(STORAGE_KEY_ASSETS, JSON.stringify(AppState.customAssets));
     localStorage.setItem(STORAGE_KEY_BUSINESSES, JSON.stringify(AppState.businesses));
+    localStorage.setItem(STORAGE_KEY_BIZ_RULES, JSON.stringify(AppState.bizMappingRules || []));
   } catch (err) {
     console.warn('LocalStorage 저장 실패:', err);
   }
@@ -620,6 +644,18 @@ function loadStateFromStorage() {
     const savedExpenses = localStorage.getItem(STORAGE_KEY_EXPENSES);
     const savedAssets = localStorage.getItem(STORAGE_KEY_ASSETS);
     const savedBusinesses = localStorage.getItem(STORAGE_KEY_BUSINESSES);
+    const savedBizRules = localStorage.getItem(STORAGE_KEY_BIZ_RULES);
+
+    if (savedBizRules) {
+      try {
+        const parsedRules = JSON.parse(savedBizRules);
+        if (Array.isArray(parsedRules) && parsedRules.length > 0) {
+          AppState.bizMappingRules = parsedRules;
+        }
+      } catch (e) {
+        console.warn('사업자 규칙 복원 오류:', e);
+      }
+    }
 
     if (savedBusinesses) {
       try {
@@ -633,9 +669,29 @@ function loadStateFromStorage() {
     }
     if (!AppState.businesses || !Array.isArray(AppState.businesses) || AppState.businesses.length === 0) {
       AppState.businesses = [
-        { id: 'biz_a', name: '사업자A', owner: '리사', regNum: '', desc: '스마트스토어 / 쿠팡 주력' },
-        { id: 'biz_b', name: '사업자B', owner: '리사', regNum: '', desc: '오픈마켓 / 도매매 주력' }
+        { id: 'biz_ackerman', name: '아커만', owner: '리사', regNum: '', desc: '스마트스토어 / 쿠팡 주력' },
+        { id: 'biz_zenitics', name: '제니틱스', owner: '리사', regNum: '', desc: '오픈마켓 / 도매매 주력' }
       ];
+    } else {
+      let migrated = false;
+      AppState.businesses.forEach(b => {
+        if (b.name === '사업자A') { b.name = '아커만'; migrated = true; }
+        if (b.name === '사업자B') { b.name = '제니틱스'; migrated = true; }
+        if (b.owner === '강우석') { b.owner = '리사'; }
+      });
+      const hasAckerman = AppState.businesses.some(b => b.name === '아커만');
+      const hasZenitics = AppState.businesses.some(b => b.name === '제니틱스');
+      if (!hasAckerman) {
+        AppState.businesses.unshift({ id: 'biz_ackerman', name: '아커만', owner: '리사', regNum: '', desc: '주력 사업자' });
+        migrated = true;
+      }
+      if (!hasZenitics) {
+        AppState.businesses.push({ id: 'biz_zenitics', name: '제니틱스', owner: '리사', regNum: '', desc: '제2 사업자' });
+        migrated = true;
+      }
+      if (migrated) {
+        saveStateToStorage();
+      }
     }
 
     if (savedBanks) {
@@ -668,25 +724,46 @@ function loadStateFromStorage() {
       AppState.customAssets = JSON.parse(savedAssets);
     }
 
-    // 기존 주문이나 계좌에 혹시 다른 사업자명이 있다면 누락 방지 자동 등록
-    const existingBizNames = new Set(AppState.businesses.map(b => b.name));
+    // 🏢 기존 주문 및 금융 데이터 사업자명 자동 마이그레이션 (사업자A -> 아커만, 사업자B -> 제니틱스)
     if (savedOrders) {
       const parsed = JSON.parse(savedOrders);
       if (Array.isArray(parsed) && parsed.length > 0) {
         AppState.rawOrders = parsed;
         AppState.rawOrders.forEach(o => {
-          if (o.biz && o.biz !== 'ALL' && !existingBizNames.has(o.biz)) {
-            AppState.businesses.push({ id: 'biz_' + Date.now() + Math.random().toString(36).substr(2, 4), name: o.biz, owner: '', regNum: '', desc: '' });
-            existingBizNames.add(o.biz);
-          }
-        });
-        (AppState.bankAccounts || []).forEach(b => {
-          if (b.biz && b.biz !== 'ALL' && !existingBizNames.has(b.biz)) {
-            AppState.businesses.push({ id: 'biz_' + Date.now() + Math.random().toString(36).substr(2, 4), name: b.biz, owner: '', regNum: '', desc: '' });
-            existingBizNames.add(b.biz);
-          }
+          if (o.biz === '사업자A') o.biz = '아커만';
+          if (o.biz === '사업자B') o.biz = '제니틱스';
+          if (!o.biz || o.biz === '미지정') o.biz = '아커만';
         });
       }
+    }
+    (AppState.bankAccounts || []).forEach(b => {
+      if (b.biz === '사업자A') b.biz = '아커만';
+      if (b.biz === '사업자B') b.biz = '제니틱스';
+    });
+    (AppState.customExpenses || []).forEach(e => {
+      if (e.biz === '사업자A') e.biz = '아커만';
+      if (e.biz === '사업자B') e.biz = '제니틱스';
+    });
+    (AppState.customAssets || []).forEach(a => {
+      if (a.biz === '사업자A') a.biz = '아커만';
+      if (a.biz === '사업자B') a.biz = '제니틱스';
+    });
+
+    // 기존 주문이나 계좌에 혹시 다른 커스텀 사업자명이 있다면 누락 방지 자동 등록
+    const existingBizNames = new Set(AppState.businesses.map(b => b.name));
+    if (AppState.rawOrders && AppState.rawOrders.length > 0) {
+      AppState.rawOrders.forEach(o => {
+        if (o.biz && o.biz !== 'ALL' && !existingBizNames.has(o.biz)) {
+          AppState.businesses.push({ id: 'biz_' + Date.now() + Math.random().toString(36).substr(2, 4), name: o.biz, owner: '', regNum: '', desc: '' });
+          existingBizNames.add(o.biz);
+        }
+      });
+      (AppState.bankAccounts || []).forEach(b => {
+        if (b.biz && b.biz !== 'ALL' && !existingBizNames.has(b.biz)) {
+          AppState.businesses.push({ id: 'biz_' + Date.now() + Math.random().toString(36).substr(2, 4), name: b.biz, owner: '', regNum: '', desc: '' });
+          existingBizNames.add(b.biz);
+        }
+      });
     }
 
     renderBusinessSwitcher();
@@ -886,7 +963,7 @@ function processOrderRows(rows, fileName = '주문파일') {
   });
 
   const orders = [];
-  const defaultBiz = (AppState.currentBizFilter !== 'ALL') ? AppState.currentBizFilter : (AppState.businesses[0]?.name || '사업자A');
+  const defaultBiz = (AppState.currentBizFilter !== 'ALL') ? AppState.currentBizFilter : (AppState.businesses[0]?.name || '아커만');
   const existingBizNames = new Set((AppState.businesses || []).map(b => b.name));
 
   for (let i = headerRowIdx + 1; i < rows.length; i++) {
@@ -911,7 +988,31 @@ function processOrderRows(rows, fileName = '주문파일') {
 
     const orderNo = get('orderNo') || `ORD-${Date.now()}-${i}`;
     let market = get('market') || '스마트스토어';
-    let biz = get('biz') || defaultBiz;
+    let rawBiz = get('biz');
+    let biz = defaultBiz;
+
+    // 1) 행 데이터에 사업자명이 들어있는 경우
+    if (rawBiz) {
+      const cleanRaw = rawBiz.trim();
+      if (cleanRaw.includes('아커만') || cleanRaw.toLowerCase().includes('ackerman')) biz = '아커만';
+      else if (cleanRaw.includes('제니틱스') || cleanRaw.toLowerCase().includes('zeni')) biz = '제니틱스';
+      else if (cleanRaw === '사업자A') biz = '아커만';
+      else if (cleanRaw === '사업자B') biz = '제니틱스';
+      else biz = cleanRaw;
+    }
+
+    // 2) 사업자 자동 분류 매핑 규칙 검사 (마켓명, 판매자ID, 상품명 등)
+    const ruleObj = {
+      market: market,
+      biz: rawBiz,
+      sellerId: rawBiz,
+      productName: productName,
+      paymentCard: get('paymentCard')
+    };
+    const matchedRuleBiz = matchBizForOrder(ruleObj);
+    if (matchedRuleBiz) {
+      biz = matchedRuleBiz;
+    }
 
     // 만약 파일에 새로운 사업자명이 들어있다면 사업자 목록에 자동 추가
     if (biz && biz !== 'ALL' && !existingBizNames.has(biz)) {
@@ -1385,7 +1486,8 @@ function renderOrdersTable() {
   }
 
   if (list.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="18" style="text-align:center;padding:40px;color:#94a3b8;">조건에 일치하는 주문 내역이 없습니다.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="19" style="text-align:center;padding:40px;color:#94a3b8;">조건에 일치하는 주문 내역이 없습니다.</td></tr>';
+    updateSelectedOrdersBadge();
     return;
   }
 
@@ -1412,9 +1514,16 @@ function renderOrdersTable() {
 
     html += `
       <tr class="${isCounted ? '' : 'row-dimmed'}">
-        <!-- 1. 사업자 (독립 셀) -->
+        <!-- 0. 선택 체크박스 -->
+        <td style="text-align:center;">
+          <input type="checkbox" class="order-select-chk" value="${escapeHtml(o.orderNo)}" onchange="updateSelectedOrdersBadge()" style="width:15px;height:15px;cursor:pointer;">
+        </td>
+
+        <!-- 1. 사업자 (원클릭 인라인 변경 드롭다운 ⭐) -->
         <td>
-          <span class="badge" style="background:${getBizBadgeStyle(o.biz).bg};color:${getBizBadgeStyle(o.biz).color};font-weight:700;">${escapeHtml(o.biz || '미지정')}</span>
+          <select class="order-biz-inline-select" onchange="quickUpdateOrderBiz('${escapeHtml(o.orderNo)}', this.value)" style="background:${getBizBadgeStyle(o.biz).bg};color:${getBizBadgeStyle(o.biz).color};">
+            ${(AppState.businesses || []).map(b => `<option value="${escapeHtml(b.name)}" ${o.biz === b.name ? 'selected' : ''}>${escapeHtml(b.name)}</option>`).join('')}
+          </select>
         </td>
 
         <!-- 2. 주문일자 / 주문고유번호 (위아래 교체 & 일자만 표시 ⭐) -->
@@ -1541,6 +1650,7 @@ function renderOrdersTable() {
   });
 
   tbody.innerHTML = html;
+  updateSelectedOrdersBadge();
 
   // 일별 및 월별 집계표도 함께 동기화 갱신 ⭐
   renderOrdersDailyTable();
@@ -2450,6 +2560,284 @@ function renderBusinessTable() {
       </tr>
     `;
   }).join('');
+}
+
+/**
+ * =========================================================
+ * 🏢 사업자(아커만/제니틱스) 인라인 즉시 변경, 일괄 배정 및 자동 분류 규칙 엔진
+ * =========================================================
+ */
+
+/**
+ * 주문의 사업자 원클릭 즉시 변경 (테이블 행 인라인 드롭다운 변경 시)
+ */
+function quickUpdateOrderBiz(orderNo, newBiz) {
+  const target = (AppState.rawOrders || []).find(o => String(o.orderNo) === String(orderNo));
+  if (!target) return;
+  target.biz = newBiz;
+  saveStateToStorage();
+
+  // 손익계산서 및 테이블 동기화
+  calculatePL();
+  if (AppState.currentBizFilter !== 'ALL') {
+    renderAll();
+  } else {
+    renderOrdersTable();
+    renderDashboard();
+    renderSettlementView();
+  }
+  showQuickToast(`✅ 주문 [#${orderNo}] 사업자가 '${newBiz}'(으)로 즉시 변경되었습니다!`);
+}
+
+/**
+ * 주문 전체 선택 / 해제 토글
+ */
+function toggleSelectAllOrders(checked) {
+  const chks = document.querySelectorAll('.order-select-chk');
+  chks.forEach(chk => { chk.checked = checked; });
+  updateSelectedOrdersBadge();
+}
+
+/**
+ * 선택된 주문 개수 배지 및 전체선택 체크박스 상태 업데이트
+ */
+function updateSelectedOrdersBadge() {
+  const chks = document.querySelectorAll('.order-select-chk:checked');
+  const count = chks.length;
+  const countText = document.getElementById('selectedOrdersCountText');
+  if (countText) {
+    countText.textContent = `(${count}건 선택됨)`;
+    countText.style.color = count > 0 ? '#2563eb' : '#64748b';
+    countText.style.fontWeight = count > 0 ? '700' : '600';
+  }
+  const selectAll = document.getElementById('orderSelectAll');
+  const totalChks = document.querySelectorAll('.order-select-chk');
+  if (selectAll && totalChks.length > 0) {
+    selectAll.checked = (count === totalChks.length);
+  }
+}
+
+/**
+ * 체크박스로 선택한 주문들 사업자 일괄 변경
+ */
+function batchAssignOrdersBiz() {
+  const chks = document.querySelectorAll('.order-select-chk:checked');
+  if (chks.length === 0) {
+    alert('사업자를 일괄 변경할 주문을 체크박스로 먼저 선택해주세요, 리사님! 😊');
+    return;
+  }
+  const targetSelect = document.getElementById('batchTargetBizSelect');
+  const targetBiz = targetSelect ? targetSelect.value : (AppState.businesses[0]?.name || '아커만');
+
+  const selectedOrderNos = new Set(Array.from(chks).map(c => String(c.value)));
+  let updatedCount = 0;
+  (AppState.rawOrders || []).forEach(o => {
+    if (selectedOrderNos.has(String(o.orderNo))) {
+      o.biz = targetBiz;
+      updatedCount++;
+    }
+  });
+
+  saveStateToStorage();
+  renderOrdersTable();
+  calculatePL();
+  if (AppState.currentBizFilter !== 'ALL') {
+    renderAll();
+  } else {
+    renderDashboard();
+    renderSettlementView();
+  }
+  updateSelectedOrdersBadge();
+  alert(`🎉 선택하신 주문 ${updatedCount}건이 '${targetBiz}' 사업자로 쏙 일괄 변경되었습니다, 리사님! ✨`);
+}
+
+/**
+ * ⚙️ 사업자 자동 분류 규칙 엔진 (마켓명, 판매자ID/계정, 상품명 등 매칭)
+ */
+function matchBizForOrder(orderData) {
+  const rules = AppState.bizMappingRules || [];
+  for (const rule of rules) {
+    const fieldVal = (
+      rule.field === 'market' ? (orderData.market || '') :
+      rule.field === 'sellerId' ? (orderData.biz || orderData.sellerId || '') :
+      rule.field === 'productName' ? (orderData.productName || '') :
+      rule.field === 'paymentCard' ? (orderData.paymentCard || '') :
+      ''
+    ).toLowerCase();
+
+    const targetVal = (rule.value || '').trim().toLowerCase();
+    if (!targetVal) continue;
+
+    if (fieldVal.includes(targetVal)) {
+      return rule.targetBiz;
+    }
+  }
+  return null;
+}
+
+/**
+ * 사업자 자동 분류 규칙 모달 열기
+ */
+function openBizMappingRulesModal() {
+  populateBusinessSelects();
+  renderBizRulesTable();
+  const overlay = document.getElementById('bizRulesModalOverlay');
+  if (overlay) overlay.style.display = 'flex';
+  if (window.feather) feather.replace();
+}
+
+/**
+ * 사업자 자동 분류 규칙 모달 닫기
+ */
+function closeBizMappingRulesModal() {
+  const overlay = document.getElementById('bizRulesModalOverlay');
+  if (overlay) overlay.style.display = 'none';
+}
+
+/**
+ * 사업자 자동 분류 규칙 테이블 렌더링
+ */
+function renderBizRulesTable() {
+  const tbody = document.getElementById('bizRulesTableBody');
+  const countBadge = document.getElementById('bizRulesCountBadge');
+  if (!tbody) return;
+
+  const rules = AppState.bizMappingRules || [];
+  if (countBadge) countBadge.textContent = rules.length;
+
+  if (rules.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="4" style="text-align:center;padding:24px;color:#94a3b8;">설정된 자동 분류 규칙이 없습니다. 위에서 새 규칙을 추가해 보세요.</td></tr>`;
+    return;
+  }
+
+  const fieldLabels = {
+    market: '판매사이트 (마켓명)',
+    sellerId: '판매자ID / 스토어명',
+    productName: '상품명 키워드',
+    paymentCard: '결제카드명'
+  };
+
+  tbody.innerHTML = rules.map(rule => {
+    const badgeStyle = getBizBadgeStyle(rule.targetBiz);
+    return `
+      <tr style="border-bottom:1px solid #f1f5f9;">
+        <td style="padding:9px 12px;font-weight:600;color:#334155;">
+          ${fieldLabels[rule.field] || rule.field}
+        </td>
+        <td style="padding:9px 12px;font-weight:700;color:#1e293b;">
+          "${escapeHtml(rule.value)}" 단어 포함
+        </td>
+        <td style="padding:9px 12px;">
+          <span class="badge" style="background:${badgeStyle.bg};color:${badgeStyle.color};padding:3px 8px;font-size:11.5px;font-weight:700;border-radius:6px;">
+            ${escapeHtml(rule.targetBiz)}
+          </span>
+        </td>
+        <td style="padding:9px 12px;text-align:center;">
+          <button type="button" class="btn btn-xs btn-danger" onclick="deleteBizRule('${rule.id}')" style="padding:2px 8px;font-size:11px;background:#fee2e2;color:#b91c1c;border:none;border-radius:4px;cursor:pointer;">
+            삭제
+          </button>
+        </td>
+      </tr>
+    `;
+  }).join('');
+}
+
+/**
+ * 새 자동 분류 규칙 등록
+ */
+function addNewBizRule() {
+  const field = document.getElementById('newRuleField').value;
+  const valueInput = document.getElementById('newRuleValue');
+  const targetBizSelect = document.getElementById('newRuleTargetBiz');
+
+  const value = valueInput ? valueInput.value.trim() : '';
+  const targetBiz = targetBizSelect ? targetBizSelect.value : (AppState.businesses[0]?.name || '아커만');
+
+  if (!value) {
+    alert('포함될 검색어 키워드를 입력해 주세요, 리사님! (예: 스마트스토어, 쿠팡 등)');
+    if (valueInput) valueInput.focus();
+    return;
+  }
+
+  if (!AppState.bizMappingRules) AppState.bizMappingRules = [];
+  AppState.bizMappingRules.push({
+    id: 'rule_' + Date.now(),
+    field,
+    operator: 'contains',
+    value,
+    targetBiz
+  });
+
+  saveStateToStorage();
+  if (valueInput) valueInput.value = '';
+  renderBizRulesTable();
+  showQuickToast(`✅ 새 자동 분류 규칙("${value}" ➔ ${targetBiz})이 등록되었습니다!`);
+}
+
+/**
+ * 자동 분류 규칙 삭제
+ */
+function deleteBizRule(id) {
+  if (!confirm('이 자동 분류 규칙을 삭제하시겠습니까?')) return;
+  AppState.bizMappingRules = (AppState.bizMappingRules || []).filter(r => r.id !== id);
+  saveStateToStorage();
+  renderBizRulesTable();
+}
+
+/**
+ * 추천 기본 규칙으로 재설정
+ */
+function resetDefaultBizRules() {
+  if (!confirm('추천 기본 분류 규칙(스마트스토어/올웨이즈 ➔ 아커만, 쿠팡/11번가 ➔ 제니틱스)으로 재설정하시겠습니까?')) return;
+  AppState.bizMappingRules = [
+    { id: 'rule_1', field: 'market', operator: 'contains', value: '스마트스토어', targetBiz: '아커만' },
+    { id: 'rule_2', field: 'market', operator: 'contains', value: '쿠팡', targetBiz: '제니틱스' },
+    { id: 'rule_3', field: 'market', operator: 'contains', value: '올웨이즈', targetBiz: '아커만' },
+    { id: 'rule_4', field: 'market', operator: 'contains', value: '11번가', targetBiz: '제니틱스' }
+  ];
+  saveStateToStorage();
+  renderBizRulesTable();
+}
+
+/**
+ * 현재 등록된 전체 주문에 규칙 일괄 적용
+ */
+function applyBizRulesToAllOrders() {
+  const rules = AppState.bizMappingRules || [];
+  if (rules.length === 0) {
+    alert('등록된 사업자 자동 분류 규칙이 없습니다. 먼저 규칙을 등록해 주세요.');
+    return;
+  }
+
+  let ackermanCount = 0;
+  let zeniticsCount = 0;
+  let otherCount = 0;
+  let matchedTotal = 0;
+
+  (AppState.rawOrders || []).forEach(o => {
+    const matchedBiz = matchBizForOrder(o);
+    if (matchedBiz) {
+      o.biz = matchedBiz;
+      matchedTotal++;
+      if (matchedBiz === '아커만') ackermanCount++;
+      else if (matchedBiz === '제니틱스') zeniticsCount++;
+      else otherCount++;
+    }
+  });
+
+  saveStateToStorage();
+  renderOrdersTable();
+  calculatePL();
+  if (AppState.currentBizFilter !== 'ALL') {
+    renderAll();
+  } else {
+    renderDashboard();
+    renderSettlementView();
+  }
+
+  let summaryMsg = `🎉 사업자 자동 분류 규칙이 성공적으로 적용되었습니다, 리사님!\n\n총 ${matchedTotal}건의 주문이 규칙에 따라 분류되었습니다:\n- 🏢 아커만: ${ackermanCount}건\n- 🏢 제니틱스: ${zeniticsCount}건`;
+  if (otherCount > 0) summaryMsg += `\n- 기타 사업자: ${otherCount}건`;
+  alert(summaryMsg);
 }
 
 /**
@@ -5462,7 +5850,7 @@ function promptAddBankAccount() {
     name: name,
     accountNum: num || '000-000-0000',
     balance: balance,
-    biz: AppState.currentBizFilter === 'ALL' ? '사업자A' : AppState.currentBizFilter
+    biz: AppState.currentBizFilter === 'ALL' ? '아커만' : AppState.currentBizFilter
   });
 
   saveStateToStorage();
@@ -5494,13 +5882,17 @@ window.handleStandardPriceInput = handleStandardPriceInput;
 window.handleSaveOrder = handleSaveOrder;
 window.promptAddBankAccount = promptAddBankAccount;
 window.promptAddStock = promptAddStock;
-// 1. 주문장 일별/월별 집계
+// 1. 주문장 일별/월별 집계 및 사업자 즉시/일괄 변경
 window.switchOrdersViewTab = switchOrdersViewTab;
 window.renderOrdersDailyTable = renderOrdersDailyTable;
 window.renderOrdersMonthlyTable = renderOrdersMonthlyTable;
 window.filterOrdersByDate = filterOrdersByDate;
+window.quickUpdateOrderBiz = quickUpdateOrderBiz;
+window.toggleSelectAllOrders = toggleSelectAllOrders;
+window.updateSelectedOrdersBadge = updateSelectedOrdersBadge;
+window.batchAssignOrdersBiz = batchAssignOrdersBiz;
 
-// 0. 사업자 등록 및 관리
+// 0. 사업자 등록 및 관리 & 자동 분류 규칙
 window.openBusinessModal = openBusinessModal;
 window.closeBusinessModal = closeBusinessModal;
 window.resetBusinessForm = resetBusinessForm;
@@ -5511,6 +5903,14 @@ window.renderBusinessTable = renderBusinessTable;
 window.renderBusinessSwitcher = renderBusinessSwitcher;
 window.populateBusinessSelects = populateBusinessSelects;
 window.getBizBadgeStyle = getBizBadgeStyle;
+window.matchBizForOrder = matchBizForOrder;
+window.openBizMappingRulesModal = openBizMappingRulesModal;
+window.closeBizMappingRulesModal = closeBizMappingRulesModal;
+window.renderBizRulesTable = renderBizRulesTable;
+window.addNewBizRule = addNewBizRule;
+window.deleteBizRule = deleteBizRule;
+window.resetDefaultBizRules = resetDefaultBizRules;
+window.applyBizRulesToAllOrders = applyBizRulesToAllOrders;
 
 // 2. 카드사 결제관리
 window.selectCard = selectCard;

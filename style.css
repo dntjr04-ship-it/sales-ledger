@@ -1938,5 +1938,42 @@ body {
   transform: translateY(-1px);
 }
 
+/* =========================================================
+   🏢 사업자(아커만/제니틱스) 인라인 선택 및 일괄 변경 툴바 스타일
+   ========================================================= */
+.order-biz-inline-select {
+  font-family: inherit;
+  font-size: 11.5px;
+  font-weight: 700;
+  padding: 3px 6px;
+  border-radius: 6px;
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  cursor: pointer;
+  outline: none;
+  transition: all 0.2s ease;
+}
+.order-biz-inline-select:hover {
+  filter: brightness(0.96);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+}
+.order-biz-inline-select:focus {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.25);
+}
+
+#ordersBatchBar {
+  transition: all 0.2s ease;
+}
+#ordersBatchBar:hover {
+  border-color: #cbd5e1;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.03);
+}
+
+.order-select-chk {
+  accent-color: #2563eb;
+  cursor: pointer;
+}
+
+
 
 

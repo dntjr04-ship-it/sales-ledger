@@ -48,8 +48,8 @@
         </div>
         <div class="btn-group-toggle" id="businessFilterGroup" style="display:flex;flex-wrap:wrap;gap:4px;width:100%;">
           <button class="toggle-btn active" data-biz="ALL" onclick="setBusinessFilter('ALL')">통합 전체</button>
-          <button class="toggle-btn" data-biz="사업자A" onclick="setBusinessFilter('사업자A')">사업자 A</button>
-          <button class="toggle-btn" data-biz="사업자B" onclick="setBusinessFilter('사업자B')">사업자 B</button>
+          <button class="toggle-btn" data-biz="아커만" onclick="setBusinessFilter('아커만')">아커만</button>
+          <button class="toggle-btn" data-biz="제니틱스" onclick="setBusinessFilter('제니틱스')">제니틱스</button>
         </div>
       </div>
 
@@ -333,10 +333,33 @@
               </div>
             </div>
             <div class="panel-body table-responsive scrollable-x">
+              <!-- 🏢 사업자 분리·관리 및 일괄 변경 툴바 -->
+              <div id="ordersBatchBar" style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px;background:#f8fafc;padding:9px 14px;border-radius:10px;border:1px solid #e2e8f0;flex-wrap:wrap;">
+                <div style="display:flex;align-items:center;gap:10px;">
+                  <span style="font-size:13px;font-weight:700;color:#1e293b;">🏢 사업자 분리·관리:</span>
+                  <span id="selectedOrdersCountText" style="font-size:12px;color:#64748b;font-weight:600;">(0건 선택됨)</span>
+                </div>
+                <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                  <span style="font-size:12px;color:#475569;font-weight:600;">선택한 주문을</span>
+                  <select id="batchTargetBizSelect" class="select-box" style="padding:4px 10px;font-size:12px;font-weight:700;border-radius:6px;">
+                    <option value="아커만">아커만</option>
+                    <option value="제니틱스">제니틱스</option>
+                  </select>
+                  <button type="button" class="btn btn-sm btn-primary" onclick="batchAssignOrdersBiz()" style="padding:5px 14px;font-size:12px;font-weight:700;border-radius:6px;">
+                    ⚡ 일괄 변경 적용
+                  </button>
+                  <div style="height:18px;width:1px;background:#cbd5e1;margin:0 4px;"></div>
+                  <button type="button" class="btn btn-sm" onclick="openBizMappingRulesModal()" style="padding:5px 12px;font-size:12px;font-weight:600;background:#eff6ff;color:#1e40af;border:1px solid #bfdbfe;border-radius:6px;display:inline-flex;align-items:center;gap:4px;">
+                    <i data-feather="shuffle" style="width:13px;height:13px;"></i> ⚙️ 마켓/계정별 자동 분류 규칙
+                  </button>
+                </div>
+              </div>
+
               <table class="data-table orders-1row-table" id="ordersTable">
                 <thead>
                   <tr>
-                    <th style="min-width:65px;">사업자</th>
+                    <th style="width:36px;text-align:center;"><input type="checkbox" id="orderSelectAll" onchange="toggleSelectAllOrders(this.checked)" style="width:15px;height:15px;cursor:pointer;" title="전체 선택"></th>
+                    <th style="min-width:85px;">사업자</th>
                     <th style="min-width:130px;">주문일자<br><span style="font-weight:normal;color:#64748b;font-size:11px;">(주문고유번호)</span></th>
                     <th style="min-width:85px;">판매처</th>
                     <th style="min-width:160px;">상품명 / 옵션</th>
@@ -1578,6 +1601,101 @@
     </div>
   </div>
 
+  <!-- 0-B. ⚙️ 사업자 자동 분류 규칙 (마켓/계정/키워드 매핑) 모달 -->
+  <div class="modal-overlay" id="bizRulesModalOverlay" style="display:none;">
+    <div class="modal-card" style="max-width: 720px; border-radius: 14px; overflow: hidden; box-shadow: 0 20px 40px -10px rgba(0,0,0,0.3); padding: 0;">
+      <div class="modal-header" style="background:#1e293b; color: #fff; padding: 16px 20px; display:flex; justify-content:space-between; align-items:center;">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <i data-feather="shuffle" style="width:20px;height:20px;"></i>
+          <h3 style="margin: 0; font-size: 16px; font-weight: 800; color: #fff;">
+            🏢 사업자 자동 분류 및 매핑 규칙 관리
+          </h3>
+        </div>
+        <button type="button" class="modal-close-btn" onclick="closeBizMappingRulesModal()" style="color:#fff;font-size:22px;border:none;background:none;cursor:pointer;">&times;</button>
+      </div>
+
+      <div class="modal-body" style="padding: 20px; max-height: 75vh; overflow-y: auto;">
+        <!-- 가이드 안내 -->
+        <div style="background:#f0fdf4; border:1px solid #bbf7d0; border-radius:10px; padding:12px 14px; margin-bottom:16px; font-size:12.5px; color:#166534; line-height:1.6;">
+          💡 <strong>사업자 자동 분류 안내</strong><br>
+          스마트스토어, 쿠팡 등 특정 판매처나 스토어 계정별로 <strong>'아커만'</strong> 또는 <strong>'제니틱스'</strong>로 주문이 쏙쏙 자동 분류되도록 규칙을 설정할 수 있어요!<br>
+          설정된 규칙은 <strong>파일을 새로 업로드할 때 자동 적용</strong>되며, 아래 <strong>[규칙 즉시 적용]</strong> 버튼을 누르면 이미 올려둔 주문도 한 번에 재분류됩니다. ✨
+        </div>
+
+        <!-- 규칙 추가 폼 -->
+        <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:16px; margin-bottom:18px;">
+          <h4 style="margin:0 0 12px; font-size:13.5px; color:#1e293b; font-weight:800;">
+            + 새 자동 분류 규칙 등록
+          </h4>
+          <div style="display:grid; grid-template-columns: 1.3fr 1.3fr 1.1fr auto; gap:10px; align-items:flex-end;">
+            <div class="form-group" style="margin-bottom:0;">
+              <label style="display:block; font-size:11.5px; font-weight:700; color:#334155; margin-bottom:4px;">
+                1. 검사할 항목
+              </label>
+              <select id="newRuleField" class="select-box" style="width:100%; padding:7px 10px; font-size:12.5px;">
+                <option value="market">판매사이트 (마켓명)</option>
+                <option value="sellerId">판매자ID / 스토어명</option>
+                <option value="productName">상품명 키워드</option>
+                <option value="paymentCard">결제카드명</option>
+              </select>
+            </div>
+            <div class="form-group" style="margin-bottom:0;">
+              <label style="display:block; font-size:11.5px; font-weight:700; color:#334155; margin-bottom:4px;">
+                2. 포함될 검색어 (키워드)
+              </label>
+              <input type="text" id="newRuleValue" placeholder="예: 스마트스토어, 쿠팡" style="width:100%; padding:7px 10px; border:1px solid #cbd5e1; border-radius:6px; font-size:12.5px;">
+            </div>
+            <div class="form-group" style="margin-bottom:0;">
+              <label style="display:block; font-size:11.5px; font-weight:700; color:#334155; margin-bottom:4px;">
+                3. 배정할 사업자
+              </label>
+              <select id="newRuleTargetBiz" class="select-box" style="width:100%; padding:7px 10px; font-size:12.5px; font-weight:700;">
+                <option value="아커만">아커만</option>
+                <option value="제니틱스">제니틱스</option>
+              </select>
+            </div>
+            <button type="button" class="btn btn-sm btn-primary" onclick="addNewBizRule()" style="padding:8px 18px; font-size:12.5px; font-weight:700; height:37px; border-radius:6px; white-space:nowrap;">
+              추가
+            </button>
+          </div>
+        </div>
+
+        <!-- 현재 활성화된 규칙 리스트 -->
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; flex-wrap:wrap; gap:8px;">
+          <h4 style="margin:0; font-size:13.5px; color:#1e293b; font-weight:800;">
+            📋 활성화된 분류 규칙 목록 (<span id="bizRulesCountBadge">0</span>개)
+          </h4>
+          <button type="button" class="btn btn-sm" onclick="applyBizRulesToAllOrders()" style="background:#2563eb; color:#fff; font-size:12px; font-weight:700; padding:6px 14px; border-radius:6px; box-shadow:0 1px 3px rgba(37,99,235,0.3);">
+            ⚡ 현재 등록된 전체 주문에 규칙 즉시 적용
+          </button>
+        </div>
+
+        <div class="table-responsive" style="border:1px solid #e2e8f0; border-radius:8px; overflow:hidden;">
+          <table class="simple-table" style="width:100%; font-size:12.5px; border-collapse:collapse;">
+            <thead style="background:#f1f5f9; text-align:left;">
+              <tr>
+                <th style="padding:8px 12px; width:180px;">검사 항목</th>
+                <th style="padding:8px 12px;">포함 검색어 (단어)</th>
+                <th style="padding:8px 12px; width:130px;">배정 대상 사업자</th>
+                <th style="padding:8px 12px; text-align:center; width:80px;">삭제</th>
+              </tr>
+            </thead>
+            <tbody id="bizRulesTableBody">
+              <!-- 규칙 목록 동적 렌더링 -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="modal-footer" style="padding: 12px 20px; display:flex; justify-content:space-between; background:#f8fafc; border-top:1px solid #e2e8f0;">
+        <button type="button" class="btn btn-sm" onclick="resetDefaultBizRules()" style="color:#64748b; background:none; border:none; text-decoration:underline; cursor:pointer; font-size:12px;">
+          기본 추천 규칙으로 재설정
+        </button>
+        <button type="button" class="btn btn-secondary btn-sm" onclick="closeBizMappingRulesModal()" style="padding:6px 16px; font-size:13px; border-radius:6px;">닫기</button>
+      </div>
+    </div>
+  </div>
+
   <!-- 1. 💳 카드사 결제일·청구기간·명의자 설정 모달 -->
   <div class="modal-overlay" id="cardSettingsModalOverlay" style="display:none;">
     <div class="modal-card" style="max-width: 720px; border-radius: 14px; overflow: hidden; box-shadow: 0 20px 40px -10px rgba(0,0,0,0.3); padding: 0;">
@@ -2066,7 +2184,7 @@
   <!-- ⚡ 실시간 플로팅 토스트 컨테이너 -->
   <div class="radar-toast-container" id="radarToastContainer"></div>
 
-  <script src="sourcingRadar.js?v=20261125_02"></script>
-  <script src="app.js?v=20261125_02"></script>
+  <script src="sourcingRadar.js?v=20261125_03"></script>
+  <script src="app.js?v=20261125_03"></script>
 </body>
 </html>
