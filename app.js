@@ -90,9 +90,10 @@ function isOrderCountable(o) {
 function getOrderProductCost(o) {
   const ptAmount = (o.point > 0 ? o.point : (o.pointUsed > 0 ? o.pointUsed : 0));
   if (o.sourcingType === '사입') {
+    // ⭐ 리사님 핵심 요청: 사입매입금액은 수량을 곱하지 않고 그냥 입력하는 금액 그대로 보여줌!
     const unitCost = (o.inventoryUnitCost > 0) ? o.inventoryUnitCost : (o.sourcingStandardPrice > 0 ? o.sourcingStandardPrice : 0);
     if (unitCost > 0) {
-      return unitCost * (o.qty || 1);
+      return unitCost;
     }
     const rawCost = (o.purchasePrice > 0 ? o.purchasePrice : (o.purchaseCost || 0));
     if (o.deliveryFeeOut > 0 && rawCost > o.deliveryFeeOut) {
@@ -5918,9 +5919,6 @@ function openOrderModal(index = -1, defaultMode = 'CONSIGNMENT_SALE') {
       document.getElementById('formPointUsed').value = ptUsed;
       document.getElementById('formPointEarned').value = ptEarned;
       document.getElementById('formSourcingStandardPrice').value = stdPrice || '';
-
-      document.getElementById('formCourier').value = o.courier || '';
-      document.getElementById('formTrackingNo').value = o.trackingNo || '';
     }
   } else {
     form.reset();
@@ -6023,9 +6021,9 @@ function handleSaveOrder(e) {
     inventoryUnitCost = stockUnitCost;
     sourcingStandardPrice = stockUnitCost;
 
-    // ⭐ 순수 상품 매입가만 purchasePrice와 purchaseCost에 저장 (택배비는 deliveryFeeOut 필드로 보관되어 마진 계산 시에만 차감 반영)
-    purchaseCost = stockUnitCost * qty;
-    purchasePrice = stockUnitCost * qty;
+    // ⭐ 리사님 핵심 요청: 수량을 곱하지 않고 입력한 금액 그대로 purchaseCost/purchasePrice에 반영!
+    purchaseCost = stockUnitCost;
+    purchasePrice = stockUnitCost;
   } else if (isPurchaseOnly) {
     // 📦 사입 매입(입고) 단독 등록
     sourcingType = '사입';
@@ -6102,8 +6100,8 @@ function handleSaveOrder(e) {
     point: point,
     purchasePrice: purchasePrice, // 매입가 (사입매출은 단가+택배비)
     purchaseStage: '완료',
-    courier: document.getElementById('formCourier') ? document.getElementById('formCourier').value : '',
-    trackingNo: document.getElementById('formTrackingNo') ? document.getElementById('formTrackingNo').value : '',
+    courier: '',
+    trackingNo: '',
     inventoryUnitCost: inventoryUnitCost,
     deliveryFeeOut: deliveryFeeOut // 출고 택배비 ⭐
   };

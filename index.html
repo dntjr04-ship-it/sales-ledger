@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>리사님의 만능 매출장부 & 경영 비서</title>
-  <link rel="stylesheet" href="style.css?v=20261125_11">
+  <link rel="stylesheet" href="style.css?v=20261125_12">
   <!-- Chart.js for beautiful charts -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <!-- Feather Icons for clean icons -->
@@ -1346,16 +1346,16 @@
               </div>
 
               <div class="form-group">
-                <label>결제카드명 *</label>
-                <input type="text" id="formPaymentCard" class="form-control" placeholder="스마일카드 Edition3, 국민카드 등" required>
+                <label>결제카드명 (또는 현금/이체) *</label>
+                <input type="text" id="formPaymentCard" class="form-control" placeholder="국민카드, 삼성카드, 현금 등" required>
               </div>
               <div class="form-group">
-                <label>카드명의 (집계 구분 기준) ⭐ *</label>
-                <input type="text" id="formCardHolder" class="form-control" placeholder="예: 강우석, 리사 등" required>
+                <label>카드명의 (현금 시 통장명의) ⭐ *</label>
+                <input type="text" id="formCardHolder" class="form-control" placeholder="예: 강우석, 리사, 통장명의 등" required>
               </div>
               <div class="form-group" style="background:#f8fafc;padding:6px 10px;border-radius:8px;border:1px dashed #cbd5e1;">
                 <label style="color:#0f172a;font-weight:700;">💳 카드결제가 (실 결제금액) *</label>
-                <input type="number" id="formCardPayAmount" class="form-control" placeholder="실제 카드 승인 금액" required oninput="calcSourcingStandardPrice()">
+                <input type="number" id="formCardPayAmount" class="form-control" placeholder="실제 카드/현금 승인 금액" required oninput="calcSourcingStandardPrice()">
               </div>
 
               <div class="form-group">
@@ -1377,15 +1377,6 @@
                   <span id="formulaSourcingText" style="font-size:11px;color:#2563eb;font-weight:600;">수식: 카드결제가 - 카드할인금액 - 포인트적립액 + 포인트사용액</span>
                 </div>
                 <input type="number" id="formSourcingStandardPrice" class="form-control" placeholder="자동으로 계산됩니다" style="font-weight:700;color:#1e40af;font-size:16px;" required>
-              </div>
-
-              <div class="form-group">
-                <label>택배사</label>
-                <input type="text" id="formCourier" class="form-control" placeholder="CJ대한통운 등">
-              </div>
-              <div class="form-group">
-                <label>송장번호</label>
-                <input type="text" id="formTrackingNo" class="form-control" placeholder="운송장 번호">
               </div>
             </div>
           </div>
@@ -2187,7 +2178,7 @@
   <!-- ⚡ 실시간 플로팅 토스트 컨테이너 -->
   <div class="radar-toast-container" id="radarToastContainer"></div>
 
-  <script src="sourcingRadar.js?v=20261125_11"></script>
-  <script src="app.js?v=20261125_11"></script>
+  <script src="sourcingRadar.js?v=20261125_12"></script>
+  <script src="app.js?v=20261125_12"></script>
 </body>
 </html>
