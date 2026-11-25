@@ -107,23 +107,18 @@ function getOrderActualCost(o) {
   return productCost + deliveryFee;
 }
 
-const CURRENT_APP_DATA_VERSION = '20261124_REAL_DATA_CLEAN_V1';
+const CURRENT_APP_DATA_VERSION = '20261125_CLEAN_WRONG_DATA_V2';
 
 /**
- * 🧹 실제 데이터 입력을 위한 기존 모의/가상 데이터 클린업
+ * 🧹 실제 데이터 입력을 위한 기존 모의/가상 및 잘못 등록된 데이터 클린업
  */
 function checkDataVersionMigration() {
   try {
     const savedVersion = localStorage.getItem('APP_DATA_VERSION');
     if (savedVersion !== CURRENT_APP_DATA_VERSION) {
+      // 리사님의 요청: 현재 올려져 있는 잘못된 주문 데이터 완전 삭제!
       localStorage.removeItem(STORAGE_KEY_ORDERS);
-      localStorage.removeItem(STORAGE_KEY_BANKS);
-      localStorage.removeItem(STORAGE_KEY_SETTLE);
-      localStorage.removeItem(STORAGE_KEY_CARDS);
-      localStorage.removeItem(STORAGE_KEY_BANK_TX);
-      localStorage.removeItem(STORAGE_KEY_EXPENSES);
-      localStorage.removeItem(STORAGE_KEY_ASSETS);
-      localStorage.removeItem(STORAGE_KEY_BUSINESSES);
+      AppState.rawOrders = [];
       localStorage.setItem('APP_DATA_VERSION', CURRENT_APP_DATA_VERSION);
       return true;
     }
@@ -752,6 +747,24 @@ function clearAllLedgerData(skipConfirm = false) {
   alert('모든 가상/임시 데이터가 깨끗하게 비워졌습니다!\n이제 실제 데이터를 자유롭게 입력해 보세요, 리사님! ✨');
 }
 window.clearAllLedgerData = clearAllLedgerData;
+
+/**
+ * 🧹 현재 등록된 주문 데이터만 전체 삭제하기 (잘못 올린 파일 비우기 ⭐)
+ */
+function clearAllOrders(skipConfirm = false) {
+  if (!skipConfirm && !confirm('현재 등록된 모든 주문 데이터를 삭제할까요, 리사님?\n(새로운 엑셀/CSV 파일을 깨끗하게 올릴 수 있습니다)')) {
+    return;
+  }
+  AppState.rawOrders = [];
+  try {
+    localStorage.removeItem(STORAGE_KEY_ORDERS);
+  } catch (e) {}
+  saveStateToStorage();
+  populateSelectFilters();
+  renderAll();
+  alert('현재 올려져 있던 주문 데이터가 깨끗하게 모두 삭제되었습니다! ✨\n이제 [엑셀/CSV 업로드]에서 새 파일을 올려보세요.');
+}
+window.clearAllOrders = clearAllOrders;
 
 /**
  * RFC-4180 CSV 파서
