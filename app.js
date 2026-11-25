@@ -79,7 +79,7 @@ function formatOrderDateOnly(dateTimeStr) {
  * "모든 실적을 집계할때는 주문구분표시와 발주상태가 완료인 것만 집계"
  */
 function isOrderCountable(o) {
-  return o.orderStage === '완료' && o.purchaseStage === '완료';
+  return o.orderStage === '완료';
 }
 
 /**
@@ -1628,7 +1628,7 @@ function renderOrdersTable() {
   }
 
   if (totalItems === 0) {
-    tbody.innerHTML = '<tr><td colspan="19" style="text-align:center;padding:40px;color:#94a3b8;">조건에 일치하는 주문 내역이 없습니다.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="17" style="text-align:center;padding:40px;color:#94a3b8;">조건에 일치하는 주문 내역이 없습니다.</td></tr>';
     updateSelectedOrdersBadge();
     renderOrdersPagination(0, 0, 0, 1, 1);
     renderOrdersDailyTable();
@@ -1693,43 +1693,41 @@ function renderOrdersTable() {
           <strong style="color:#1e293b;">${o.market ? o.market : '-'}</strong>
         </td>
 
-        <!-- 4. 상품명 / 옵션 -->
+        <!-- 4. 고객명 (상품명 앞으로 이동 & 가로폭 축소 ⭐) -->
+        <td style="width:65px;max-width:75px;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${isPurchaseOnly ? '-' : (o.recipient || '-')}">
+          <span style="font-weight:600;color:#334155;font-size:12px;">${isPurchaseOnly ? '-' : (o.recipient || '-')}</span>
+        </td>
+
+        <!-- 5. 상품명 / 옵션 -->
         <td style="max-width:220px;">
           <div style="font-weight:600;color:#1e293b;text-overflow:ellipsis;overflow:hidden;white-space:nowrap;" title="${o.productName}">${o.productName}</div>
           ${o.option ? `<div style="font-size:11px;color:#64748b;text-overflow:ellipsis;overflow:hidden;white-space:nowrap;">${o.option}</div>` : ''}
         </td>
 
-        <!-- 5. 수량 -->
-        <td style="text-align:center;">
+        <!-- 6. 수량 -->
+        <td style="width:45px;text-align:center;">
           <strong>${o.qty}</strong>
         </td>
-
-        <!-- 6. 고객명 -->
-        <td>${isPurchaseOnly ? '-' : (o.recipient || '-')}</td>
 
         <!-- 7. 판매가(배송비포함) -->
         <td style="text-align:right;">
           <strong style="font-size:13px;color:#1e293b;">${isPurchaseOnly ? '-' : formatKRW(o.totalSales)}</strong>
         </td>
 
-        <!-- 8. 정산예정가 -->
-        <td style="text-align:right;">
-          <strong class="text-info">${isPurchaseOnly ? '-' : formatKRW(o.standardPrice)}</strong>
-        </td>
-
-        <!-- 9. 정산가 (천원단위 콤마 표시 ⭐) -->
+        <!-- 8. 정산가 (정산예정가와 통합 & 직접 가격 변경 가능 ⭐) -->
         <td style="text-align:right;">
           ${isPurchaseOnly ? '-' : `
             <input type="text" class="input-settlement" 
-                   value="${formatKRW(o.actualSettlement || o.standardPrice)}" 
-                   title="실제 정산가를 입력하세요 (천원단위 콤마 표시)"
+                   value="${formatKRW(o.actualSettlement > 0 ? o.actualSettlement : (o.standardPrice || o.totalSales))}" 
+                   title="정산가를 클릭하여 변경할 수 있습니다"
+                   style="width:85px;text-align:right;font-weight:700;color:#1e40af;border:1px solid #bfdbfe;background:#f8fafc;padding:3px 6px;border-radius:5px;font-size:12.5px;"
                    onfocus="this.select()"
                    oninput="formatSettlementInput(this)"
                    onchange="updateActualSettlement(${rawIdx}, this.value)">
           `}
         </td>
 
-        <!-- 10. 주문구분 (사입입고 삭제! 대기/완료/취소/반품/교환만 관리 ⭐) -->
+        <!-- 9. 주문구분 (사입입고 삭제! 대기/완료/취소/반품/교환만 관리 ⭐) -->
         <td style="text-align:center;">
           <select class="select-stage stage-${o.orderStage==='완료'?'completed':(o.orderStage==='대기'?'waiting':'cancel')}" 
                   onchange="updateOrderStage(${rawIdx}, this.value)">
@@ -1741,7 +1739,7 @@ function renderOrdersTable() {
           </select>
         </td>
 
-        <!-- 11. 매입유형 (사입은 오직 여기서 관리! ⭐) -->
+        <!-- 10. 매입유형 (사입은 오직 여기서 관리! ⭐) -->
         <td style="text-align:center;">
           <select class="select-stage ${o.sourcingType==='사입'?'stage-waiting':'stage-completed'}" 
                   onchange="updateSourcingType(${rawIdx}, this.value)">
@@ -1750,19 +1748,19 @@ function renderOrdersTable() {
           </select>
         </td>
 
-        <!-- 12. 소싱처 / 공급사 (소싱처 수기 등록 확인 ⭐) -->
+        <!-- 11. 소싱처 / 공급사 (소싱처 수기 등록 확인 ⭐) -->
         <td>
           <div style="font-weight:600;color:#1e293b;">${o.sourcingPlatform || '-'}</div>
           <div style="font-size:11px;color:#64748b;">${o.supplierName || o.supplierBiz || '-'}</div>
         </td>
 
-        <!-- 13. 결제카드 / 카드명의 -->
-        <td>
-          <div>${o.paymentCard || '-'}</div>
-          <div style="font-size:11px;color:#4f46e5;font-weight:700;">${o.cardHolder || '명의미지정'}</div>
+        <!-- 12. 결제카드 / 카드명의 (가로폭 축소 ⭐) -->
+        <td style="width:90px;max-width:105px;line-height:1.25;">
+          <div style="font-size:12px;font-weight:600;color:#1e293b;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${o.paymentCard || '-'}">${o.paymentCard || '-'}</div>
+          <div style="font-size:10.5px;color:#4f46e5;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${o.cardHolder || '명의미지정'}">${o.cardHolder || '미지정'}</div>
         </td>
 
-        <!-- 14. 매입가 (순수 상품 매입가만 깔끔하게 표시! 사입 택배비는 표시 안 함 ⭐) -->
+        <!-- 13. 매입가 (순수 상품 매입가만 깔끔하게 표시! 사입 택배비는 표시 안 함 ⭐) -->
         <td style="text-align:right;">
           <strong class="text-danger">${productCost > 0 ? formatKRW(productCost) : '-'}</strong>
           ${(o.sourcingType === '위탁' && (o.point > 0 || o.pointUsed > 0)) ? `
@@ -1772,7 +1770,7 @@ function renderOrdersTable() {
           ` : ''}
         </td>
 
-        <!-- 15. 마진금액 (업로드 파일 수치 연결 ⭐) -->
+        <!-- 14. 마진금액 (업로드 파일 수치 연결 ⭐) -->
         <td style="text-align:right;">
           ${isPurchaseOnly ? '<span style="color:#94a3b8;font-size:11px;">(사입재고)</span>' : `
             <strong class="${marginAmt >= 0 ? 'text-success' : 'text-danger'}" style="font-size:12.5px;">
@@ -1781,7 +1779,7 @@ function renderOrdersTable() {
           `}
         </td>
 
-        <!-- 16. 마진율 (업로드 파일 수치 연결 ⭐) -->
+        <!-- 15. 마진율 (업로드 파일 수치 연결 ⭐) -->
         <td style="text-align:center;">
           ${isPurchaseOnly ? '-' : `
             <span class="badge" style="background:${marginPct >= 15 ? '#ecfdf5' : (marginPct < 0 ? '#fef2f2' : '#f1f5f9')};color:${marginPct >= 15 ? '#059669' : (marginPct < 0 ? '#dc2626' : '#475569')};font-weight:700;">
@@ -1790,19 +1788,11 @@ function renderOrdersTable() {
           `}
         </td>
 
-        <!-- 17. 발주상태 -->
-        <td style="text-align:center;">
-          <select class="select-stage stage-${o.purchaseStage==='완료'?'completed':'cancel'}" 
-                  onchange="updatePurchaseStage(${rawIdx}, this.value)">
-            <option value="완료" ${o.purchaseStage==='완료'?'selected':''}>완료</option>
-            <option value="반품" ${o.purchaseStage==='반품'?'selected':''}>반품</option>
-            <option value="취소" ${o.purchaseStage==='취소'?'selected':''}>취소</option>
-          </select>
-        </td>
-
-        <!-- 18. 관리 -->
+        <!-- 16. 관리 -->
         <td style="text-align:center;">
           <button class="btn-action-icon" onclick="openOrderModal(${rawIdx})" title="주문 수정">✏️</button>
+          <button class="btn-action-icon delete" onclick="deleteOrder(${rawIdx})" title="주문 삭제">🗑️</button>
+        </td>
           <button class="btn-action-icon delete" onclick="deleteOrder(${rawIdx})" title="주문 삭제">🗑️</button>
         </td>
       </tr>
@@ -5488,7 +5478,14 @@ function updateActualSettlement(index, val) {
   // 콤마 제거 후 숫자 변환 ⭐
   const cleanNum = parseFloat(String(val).replace(/,/g, '')) || 0;
   if (AppState.rawOrders[index]) {
-    AppState.rawOrders[index].actualSettlement = cleanNum;
+    const o = AppState.rawOrders[index];
+    o.actualSettlement = cleanNum;
+    o.standardPrice = cleanNum; // ⭐ 정산예정가와 통합되어 둘 다 동기화
+    const cost = getOrderActualCost(o);
+    o.marginAmt = cleanNum - cost;
+    if (cleanNum > 0) {
+      o.marginRate = ((cleanNum - cost) / cleanNum) * 100;
+    }
     saveStateToStorage();
     renderAll();
   }

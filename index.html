@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>리사님의 만능 매출장부 & 경영 비서</title>
-  <link rel="stylesheet" href="style.css?v=20261125_07">
+  <link rel="stylesheet" href="style.css?v=20261125_08">
   <!-- Chart.js for beautiful charts -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <!-- Feather Icons for clean icons -->
@@ -288,7 +288,7 @@
                 <i data-feather="list"></i>
                 <h3>전체 주문 매입·매출 상세장부</h3>
                 <span class="badge" style="background:#ecfdf5;color:#059669;margin-left:8px;">
-                  💡 실적집계: [주문구분: 완료] & [발주상태: 완료] 건만 반영
+                  💡 실적집계: [주문구분: 완료] 건 반영
                 </span>
               </div>
               <div class="table-actions flex-wrap">
@@ -311,12 +311,6 @@
                   <option value="취소">주문: 취소</option>
                   <option value="반품">주문: 반품</option>
                   <option value="교환">주문: 교환</option>
-                </select>
-                <select id="purchaseStageFilterSelect" class="select-box">
-                  <option value="ALL">모든 발주상태</option>
-                  <option value="완료">발주: 완료</option>
-                  <option value="반품">발주: 반품</option>
-                  <option value="취소">발주: 취소</option>
                 </select>
                 <div class="orders-page-size-wrap">
                   <select id="ordersPageSizeSelect" class="select-box" onchange="changeOrdersPageSize(this.value)" style="font-weight:700;color:#1e3a8a;border-color:#93c5fd;background:#eff6ff;" title="한 페이지에 표시할 주문 건수">
@@ -368,24 +362,22 @@
                 <thead>
                   <tr>
                     <th style="width:36px;text-align:center;"><input type="checkbox" id="orderSelectAll" onchange="toggleSelectAllOrders(this.checked)" style="width:15px;height:15px;cursor:pointer;" title="전체 선택"></th>
-                    <th style="min-width:85px;">사업자</th>
-                    <th style="min-width:130px;">주문일자<br><span style="font-weight:normal;color:#64748b;font-size:11px;">(주문고유번호)</span></th>
-                    <th style="min-width:85px;">판매처</th>
-                    <th style="min-width:160px;">상품명 / 옵션</th>
-                    <th style="min-width:45px;text-align:center;">수량</th>
-                    <th style="min-width:65px;">고객명</th>
-                    <th style="min-width:90px;text-align:right;">판매가<br><span style="font-weight:normal;color:#64748b;font-size:11px;">(배송비포함)</span></th>
-                    <th style="min-width:85px;text-align:right;">정산예정가</th>
-                    <th style="min-width:95px;text-align:right;">정산가</th>
-                    <th style="min-width:80px;text-align:center;">주문구분</th>
-                    <th style="min-width:80px;text-align:center;">매입유형</th>
-                    <th style="min-width:100px;">소싱처 / 공급사</th>
-                    <th style="min-width:130px;">결제카드<br><span style="font-weight:normal;color:#64748b;font-size:11px;">(카드명의)</span></th>
-                    <th style="min-width:85px;text-align:right;">매입가</th>
-                    <th style="min-width:85px;text-align:right;">마진금액</th>
+                    <th style="min-width:80px;">사업자</th>
+                    <th style="min-width:120px;">주문일자<br><span style="font-weight:normal;color:#64748b;font-size:11px;">(주문고유번호)</span></th>
+                    <th style="min-width:75px;">판매처</th>
+                    <th style="width:65px;min-width:55px;max-width:75px;text-align:center;">고객명</th>
+                    <th style="min-width:150px;">상품명 / 옵션</th>
+                    <th style="width:45px;min-width:40px;text-align:center;">수량</th>
+                    <th style="min-width:85px;text-align:right;">판매가<br><span style="font-weight:normal;color:#64748b;font-size:11px;">(배송비포함)</span></th>
+                    <th style="min-width:90px;text-align:right;">정산가</th>
+                    <th style="min-width:75px;text-align:center;">주문구분</th>
+                    <th style="min-width:75px;text-align:center;">매입유형</th>
+                    <th style="min-width:95px;">소싱처 / 공급사</th>
+                    <th style="width:90px;min-width:85px;max-width:105px;">결제카드<br><span style="font-weight:normal;color:#64748b;font-size:10.5px;">(명의)</span></th>
+                    <th style="min-width:80px;text-align:right;">매입가</th>
+                    <th style="min-width:80px;text-align:right;">마진금액</th>
                     <th style="min-width:65px;text-align:center;">마진율</th>
-                    <th style="min-width:80px;text-align:center;">발주상태</th>
-                    <th style="min-width:65px;text-align:center;">관리</th>
+                    <th style="min-width:60px;text-align:center;">관리</th>
                   </tr>
                 </thead>
                 <tbody id="ordersTableBody">
@@ -2203,7 +2195,7 @@
   <!-- ⚡ 실시간 플로팅 토스트 컨테이너 -->
   <div class="radar-toast-container" id="radarToastContainer"></div>
 
-  <script src="sourcingRadar.js?v=20261125_07"></script>
-  <script src="app.js?v=20261125_07"></script>
+  <script src="sourcingRadar.js?v=20261125_08"></script>
+  <script src="app.js?v=20261125_08"></script>
 </body>
 </html>
