@@ -50,6 +50,10 @@ const AppState = {
   // 4. 주문장 뷰 모드 ('list', 'daily', 'monthly')
   ordersViewMode: 'list',
 
+  // 5. 주문장 페이징 상태 (⭐ 리사님 요청: 기본 10건씩 조회)
+  ordersCurrentPage: 1,
+  ordersPageSize: 10,
+
   // 사용자 권한 상태
   currentUser: {
     name: '리사 사장님',
@@ -413,6 +417,7 @@ function populateBusinessSelects() {
  */
 function setBusinessFilter(biz) {
   AppState.currentBizFilter = biz;
+  AppState.ordersCurrentPage = 1;
   renderBusinessSwitcher();
 
   const badge = document.getElementById('currentBizBadge');
@@ -442,6 +447,7 @@ function initFilters() {
   if (searchInput) {
     searchInput.addEventListener('input', (e) => {
       AppState.searchQuery = e.target.value.trim().toLowerCase();
+      AppState.ordersCurrentPage = 1;
       renderOrdersTable();
     });
   }
@@ -449,6 +455,7 @@ function initFilters() {
   if (marketSelect) {
     marketSelect.addEventListener('change', (e) => {
       AppState.selectedMarket = e.target.value;
+      AppState.ordersCurrentPage = 1;
       renderOrdersTable();
     });
   }
@@ -456,6 +463,7 @@ function initFilters() {
   if (sourcingSelect) {
     sourcingSelect.addEventListener('change', (e) => {
       AppState.selectedSourcing = e.target.value;
+      AppState.ordersCurrentPage = 1;
       renderOrdersTable();
     });
   }
@@ -463,6 +471,7 @@ function initFilters() {
   if (sourcingTypeSelect) {
     sourcingTypeSelect.addEventListener('change', (e) => {
       AppState.selectedSourcingType = e.target.value;
+      AppState.ordersCurrentPage = 1;
       renderOrdersTable();
     });
   }
@@ -470,6 +479,7 @@ function initFilters() {
   if (orderStageSelect) {
     orderStageSelect.addEventListener('change', (e) => {
       AppState.selectedOrderStage = e.target.value;
+      AppState.ordersCurrentPage = 1;
       renderOrdersTable();
     });
   }
@@ -477,6 +487,7 @@ function initFilters() {
   if (purchaseStageSelect) {
     purchaseStageSelect.addEventListener('change', (e) => {
       AppState.selectedPurchaseStage = e.target.value;
+      AppState.ordersCurrentPage = 1;
       renderOrdersTable();
     });
   }
@@ -665,6 +676,7 @@ function saveStateToStorage() {
     localStorage.setItem(STORAGE_KEY_ASSETS, JSON.stringify(AppState.customAssets));
     localStorage.setItem(STORAGE_KEY_BUSINESSES, JSON.stringify(AppState.businesses));
     localStorage.setItem(STORAGE_KEY_BIZ_RULES, JSON.stringify(AppState.bizMappingRules || []));
+    localStorage.setItem('sales_ledger_page_size', String(AppState.ordersPageSize || 10));
   } catch (err) {
     console.warn('LocalStorage 저장 실패:', err);
   }
@@ -681,6 +693,13 @@ function loadStateFromStorage() {
     const savedAssets = localStorage.getItem(STORAGE_KEY_ASSETS);
     const savedBusinesses = localStorage.getItem(STORAGE_KEY_BUSINESSES);
     const savedBizRules = localStorage.getItem(STORAGE_KEY_BIZ_RULES);
+    const savedPageSize = localStorage.getItem('sales_ledger_page_size');
+
+    if (savedPageSize) {
+      AppState.ordersPageSize = (savedPageSize === 'ALL') ? 'ALL' : (parseInt(savedPageSize, 10) || 10);
+    } else {
+      AppState.ordersPageSize = 10;
+    }
 
     if (savedBizRules) {
       try {
@@ -1230,6 +1249,7 @@ function processOrderRows(rows, fileName = '주문파일') {
 
   // 이번 업로드 주문 데이터로 갱신 (실데이터 모드 ⭐)
   AppState.rawOrders = orders;
+  AppState.ordersCurrentPage = 1;
   saveStateToStorage();
   renderBusinessSwitcher();
   populateBusinessSelects();
@@ -1590,15 +1610,45 @@ function renderOrdersTable() {
     list = list.filter(o => o.purchaseStage === AppState.selectedPurchaseStage);
   }
 
-  if (list.length === 0) {
+  const totalItems = list.length;
+  const pageSize = (AppState.ordersPageSize === 'ALL') ? totalItems : (parseInt(AppState.ordersPageSize, 10) || 10);
+  const totalPages = (pageSize > 0 && totalItems > 0) ? Math.ceil(totalItems / pageSize) : 1;
+
+  if (AppState.ordersCurrentPage > totalPages) {
+    AppState.ordersCurrentPage = Math.max(1, totalPages);
+  }
+  if (AppState.ordersCurrentPage < 1) {
+    AppState.ordersCurrentPage = 1;
+  }
+
+  // 상단 페이지당 건수 셀렉트 동기화
+  const sizeSelect = document.getElementById('ordersPageSizeSelect');
+  if (sizeSelect && sizeSelect.value !== String(AppState.ordersPageSize)) {
+    sizeSelect.value = String(AppState.ordersPageSize);
+  }
+
+  if (totalItems === 0) {
     tbody.innerHTML = '<tr><td colspan="19" style="text-align:center;padding:40px;color:#94a3b8;">조건에 일치하는 주문 내역이 없습니다.</td></tr>';
     updateSelectedOrdersBadge();
+    renderOrdersPagination(0, 0, 0, 1, 1);
+    renderOrdersDailyTable();
+    renderOrdersMonthlyTable();
     return;
+  }
+
+  let startIdx = 0;
+  let endIdx = totalItems;
+  let pageItems = list;
+
+  if (AppState.ordersPageSize !== 'ALL' && totalItems > 0) {
+    startIdx = (AppState.ordersCurrentPage - 1) * pageSize;
+    endIdx = Math.min(startIdx + pageSize, totalItems);
+    pageItems = list.slice(startIdx, endIdx);
   }
 
   let html = '';
 
-  list.forEach(o => {
+  pageItems.forEach(o => {
     const rawIdx = AppState.rawOrders.indexOf(o);
 
     // 사입 입고 건 (매출 없이 사입한 경우: 판매처 공란 or 판매가 0)
@@ -1762,9 +1812,140 @@ function renderOrdersTable() {
   tbody.innerHTML = html;
   updateSelectedOrdersBadge();
 
+  // ⭐ 페이지네이션 컨트롤 바 렌더링
+  renderOrdersPagination(totalItems, startIdx, endIdx, totalPages, AppState.ordersCurrentPage);
+
   // 일별 및 월별 집계표도 함께 동기화 갱신 ⭐
   renderOrdersDailyTable();
   renderOrdersMonthlyTable();
+}
+
+/**
+ * 📄 매입·매출 주문장 페이지네이션 UI 렌더링
+ */
+function renderOrdersPagination(totalItems, startIdx, endIdx, totalPages, currentPage) {
+  const container = document.getElementById('ordersPaginationContainer');
+  const infoEl = document.getElementById('ordersPaginationInfo');
+  const navEl = document.getElementById('ordersPaginationNav');
+  if (!container || !infoEl || !navEl) return;
+
+  if (totalItems === 0) {
+    infoEl.innerHTML = `<span>총 <strong>0</strong>건의 주문이 있습니다.</span>`;
+    navEl.innerHTML = '';
+    return;
+  }
+
+  // 1. 정보 텍스트 (총 N건 중 A~B건 표시)
+  if (AppState.ordersPageSize === 'ALL') {
+    infoEl.innerHTML = `
+      <span>총 <strong>${formatNumber(totalItems)}</strong>건의 주문이 전체 표시 중입니다.</span>
+    `;
+  } else {
+    infoEl.innerHTML = `
+      <span>총 <strong>${formatNumber(totalItems)}</strong>건 중 <strong>${formatNumber(startIdx + 1)} ~ ${formatNumber(endIdx)}</strong>건 표시</span>
+      <span style="color:#cbd5e1;margin:0 4px;">|</span>
+      <span>페이지 <strong>${currentPage}</strong> / ${totalPages}</span>
+    `;
+  }
+
+  // 2. 단일 페이지거나 전체 보기일 때는 이동 버튼 숨김
+  if (totalPages <= 1 || AppState.ordersPageSize === 'ALL') {
+    navEl.innerHTML = '';
+    return;
+  }
+
+  let buttonsHtml = '';
+
+  // 1) 처음으로
+  const isFirst = (currentPage <= 1);
+  buttonsHtml += `
+    <button type="button" class="pagination-btn pagination-btn-arrow" 
+            onclick="goToOrdersPage(1)" ${isFirst ? 'disabled' : ''} title="첫 페이지로 이동">
+      ⏮ 처음
+    </button>
+  `;
+
+  // 2) 이전
+  buttonsHtml += `
+    <button type="button" class="pagination-btn pagination-btn-arrow" 
+            onclick="goToOrdersPage(${currentPage - 1})" ${isFirst ? 'disabled' : ''} title="이전 페이지">
+      ◀ 이전
+    </button>
+  `;
+
+  // 3) 페이지 번호 버튼들 (최대 5개 노출)
+  const maxButtons = 5;
+  let startPage = Math.max(1, currentPage - Math.floor(maxButtons / 2));
+  let endPage = startPage + maxButtons - 1;
+  if (endPage > totalPages) {
+    endPage = totalPages;
+    startPage = Math.max(1, endPage - maxButtons + 1);
+  }
+
+  if (startPage > 1) {
+    buttonsHtml += `<button type="button" class="pagination-btn" onclick="goToOrdersPage(1)">1</button>`;
+    if (startPage > 2) {
+      buttonsHtml += `<span style="padding:0 3px;color:#94a3b8;font-size:12px;">…</span>`;
+    }
+  }
+
+  for (let p = startPage; p <= endPage; p++) {
+    const isActive = (p === currentPage);
+    buttonsHtml += `
+      <button type="button" class="pagination-btn ${isActive ? 'active' : ''}" 
+              onclick="goToOrdersPage(${p})">
+        ${p}
+      </button>
+    `;
+  }
+
+  if (endPage < totalPages) {
+    if (endPage < totalPages - 1) {
+      buttonsHtml += `<span style="padding:0 3px;color:#94a3b8;font-size:12px;">…</span>`;
+    }
+    buttonsHtml += `<button type="button" class="pagination-btn" onclick="goToOrdersPage(${totalPages})">${totalPages}</button>`;
+  }
+
+  // 4) 다음
+  const isLast = (currentPage >= totalPages);
+  buttonsHtml += `
+    <button type="button" class="pagination-btn pagination-btn-arrow" 
+            onclick="goToOrdersPage(${currentPage + 1})" ${isLast ? 'disabled' : ''} title="다음 페이지">
+      다음 ▶
+    </button>
+  `;
+
+  // 5) 마지막으로
+  buttonsHtml += `
+    <button type="button" class="pagination-btn pagination-btn-arrow" 
+            onclick="goToOrdersPage(${totalPages})" ${isLast ? 'disabled' : ''} title="마지막 페이지로 이동">
+      끝 ⏭
+    </button>
+  `;
+
+  navEl.innerHTML = buttonsHtml;
+}
+
+/**
+ * 📄 특정 페이지로 이동
+ */
+function goToOrdersPage(page) {
+  AppState.ordersCurrentPage = page;
+  renderOrdersTable();
+  const table = document.getElementById('ordersTable');
+  if (table) {
+    table.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+}
+
+/**
+ * 📄 한 페이지당 표시할 건수 변경 (10건, 20건, 50건, 100건, ALL)
+ */
+function changeOrdersPageSize(size) {
+  AppState.ordersPageSize = (size === 'ALL') ? 'ALL' : (parseInt(size, 10) || 10);
+  AppState.ordersCurrentPage = 1;
+  saveStateToStorage();
+  renderOrdersTable();
 }
 
 /**
@@ -2019,6 +2200,7 @@ function filterOrdersByDate(dateOrMonthStr) {
   if (input) {
     input.value = dateOrMonthStr;
     AppState.searchQuery = dateOrMonthStr.trim().toLowerCase();
+    AppState.ordersCurrentPage = 1;
     renderOrdersTable();
   }
 }
@@ -5993,6 +6175,8 @@ window.promptAddBankAccount = promptAddBankAccount;
 window.promptAddStock = promptAddStock;
 // 1. 주문장 일별/월별 집계 및 사업자 즉시/일괄 변경
 window.switchOrdersViewTab = switchOrdersViewTab;
+window.goToOrdersPage = goToOrdersPage;
+window.changeOrdersPageSize = changeOrdersPageSize;
 window.renderOrdersDailyTable = renderOrdersDailyTable;
 window.renderOrdersMonthlyTable = renderOrdersMonthlyTable;
 window.filterOrdersByDate = filterOrdersByDate;
